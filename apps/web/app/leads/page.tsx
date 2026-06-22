@@ -1,15 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import type { Tables } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
 
-type LeadRow = {
-  id: string;
-  company_name: string;
-  city: string | null;
-  website_need: string;
-  score: number | null;
-  pipeline_status: string;
-};
+type LeadRow = Pick<
+  Tables<"leads">,
+  "id" | "company_name" | "city" | "website_need" | "score" | "pipeline_status"
+>;
 
 export default async function LeadsPage() {
   const supabase = await createClient();
@@ -20,8 +17,9 @@ export default async function LeadsPage() {
     .from("leads")
     .select("id, company_name, city, website_need, score, pipeline_status")
     .order("score", { ascending: false, nullsFirst: false })
-    .limit(50);
-  const leads = (data ?? []) as LeadRow[];
+    .limit(50)
+    .returns<LeadRow[]>();
+  const leads = data ?? [];
 
   return (
     <main className="mx-auto max-w-5xl p-6">
