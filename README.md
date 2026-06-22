@@ -43,5 +43,6 @@ uv run leadmachine hello                              # smoke test
 
 ## Status
 
-V1 in progress — milestone **M0 (foundation)**. Tracking issues:
+V1 in progress — **M0 (foundation) complete; next: M1 (CVR discovery)**.
+Resume point & state: [`docs/SESSION-LOG.md`](./docs/SESSION-LOG.md) ·
 [milestones & backlog](https://github.com/djn203040-cmd/lead-machine/issues).
