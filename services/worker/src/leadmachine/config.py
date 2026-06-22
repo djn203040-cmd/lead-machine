@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
 
     # CVR Elasticsearch (free creds via cvrselvbetjening@erst.dk)
-    cvr_es_url: str = "http://distribution.virk.dk/cvr-permanent/_search"
+    cvr_es_url: str = "http://distribution.virk.dk/cvr-permanent/virksomhed/_search"
     cvr_es_user: str = ""
     cvr_es_password: str = ""
 

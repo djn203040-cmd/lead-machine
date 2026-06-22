@@ -7,16 +7,17 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0 (foundation) COMPLETE** · **next = M1 (CVR discovery)**.
-- **Branch:** `claude/dazzling-hypatia-w3seu6` · latest commit `abb869f`.
+- **State:** V1 · **M0 COMPLETE** · **M1 (CVR discovery) core BUILT against mocks** (pending live CVR creds for an end-to-end run) · **next = M2 (website qualification)**.
+- **Branch:** `claude/compassionate-goldberg-x7nu36` · latest commit = the M1 commit below.
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
 
-### Next task — M1: CVR discovery ([#2](https://github.com/djn203040-cmd/lead-machine/issues/2))
-Build the engine that finds Danish businesses by branchekode + area and writes deduped leads:
-- [#14](https://github.com/djn203040-cmd/lead-machine/issues/14) **CVR Elasticsearch client** — `distribution.virk.dk/cvr-permanent/_search`, Basic auth, scroll/pagination, behind an interface (`services/worker/src/leadmachine/cvr/__init__.py` already has the `CvrClient` Protocol). **Build against a mocked CVR response so it's testable before creds arrive.**
-- [#15](https://github.com/djn203040-cmd/lead-machine/issues/15) **Branchekode catalog** — map local-business types → DB07 codes (hairdresser 96.02.10, restaurant 56.10.10, plumber 43.22.00, dentist 86.23.00, gym 93.13.00, …) with Danish labels.
-- [#16](https://github.com/djn203040-cmd/lead-machine/issues/16) **Query builder** — `searches.parameters` → ES query (branchekode, kommune/postnr, employee band, status).
-- [#17](https://github.com/djn203040-cmd/lead-machine/issues/17) **Discovery job** — upsert `leads` (dedup by `cvr_number`), store raw payload in `lead_enrichment.cvr`, **suppress `reklamebeskyttet` + inactive/bankrupt/dissolved**.
+### M1: CVR discovery ([#2](https://github.com/djn203040-cmd/lead-machine/issues/2)) — built (mock-tested)
+All four work issues implemented under `services/worker/src/leadmachine/cvr/`, 32 tests green, ruff clean:
+- [#14](https://github.com/djn203040-cmd/lead-machine/issues/14) **CVR ES client** — `cvr/client.py` `EsCvrClient`: Basic auth, **scroll pagination**, tenacity retries (transport + 5xx), injectable `httpx.Client` (tested via `MockTransport`). Behind the `CvrClient` Protocol (`cvr/__init__.py`). *P-unit (produktionsenhed) retrieval deferred to M3 enrichment — point the client URL at that index when needed.*
+- [#15](https://github.com/djn203040-cmd/lead-machine/issues/15) **Branchekode catalog** — `cvr/branchekoder.py`: ~37 DB07 codes (6-digit CVR form) across 8 groups, Danish labels. `leadmachine categories` dumps it as JSON for the M5 filter.
+- [#16](https://github.com/djn203040-cmd/lead-machine/issues/16) **Query builder** — `cvr/query.py` `SearchParameters` + `build_es_query()`: branchekode terms, postnr (discrete + ranges) / kommune OR-clause, employee band (matches monthly/quarterly/yearly cadence), status (defaults to active; explicit `[]` disables).
+- [#17](https://github.com/djn203040-cmd/lead-machine/issues/17) **Discovery job** — `cvr/discovery.py` `run_discovery()` + `SupabaseLeadWriter`: upsert `leads` on_conflict `cvr_number` (idempotent dedup), raw → `lead_enrichment.cvr`, suppress `reklamebeskyttet` + non-active status. `cvr/mapper.py` flattens `Vrvirksomhed` (current/non-secret contacts, latest employment, sole-trader detection). CLI: `leadmachine discover`.
+- **To run live:** get CVR creds (below) → `services/worker/.env` (`CVR_ES_USER`/`CVR_ES_PASSWORD`) → `uv run leadmachine discover -b 960210 -p 2200`.
 
 ### To run the project locally
 ```bash
@@ -41,7 +42,7 @@ uv run leadmachine hello               # smoke test
 
 ## Key resources
 
-- **GitHub:** `djn203040-cmd/lead-machine` · default branch = working branch `claude/dazzling-hypatia-w3seu6`.
+- **GitHub:** `djn203040-cmd/lead-machine` · default branch `main` · current working branch `claude/compassionate-goldberg-x7nu36`.
 - **Supabase project (this app):** name `lead-machine`, ref **`dxkxamlwucknndcqqtrj`**, region `eu-north-1`, org **Conversiatech** (`aytobdmpximsadxjnknj`), **~$10/mo**.
   - URL: `https://dxkxamlwucknndcqqtrj.supabase.co`
   - Publishable (anon) key — *non-secret, safe to expose*: `sb_publishable_VimnnrFRb7jkvWlaoAA5Lg_2Dx87Duy`
@@ -63,8 +64,9 @@ uv run leadmachine hello               # smoke test
 ## Milestone / issue map
 
 - **M0 Foundation — ✅ closed** ([#1](https://github.com/djn203040-cmd/lead-machine/issues/1): #10, #11, #12, #13).
+- **M1 CVR discovery — code complete (mock-tested), not yet closed** ([#2]: #14–#17). Close after a live CVR-creds run confirms acceptance.
 - **Open epics:** M1 [#2], M2 [#3], M3 [#4], M4 [#5], M5 [#6], M6 [#7], M7 [#8], V2 [#9].
-- **Open work issues:** M1 #14–#17, M2 #18–#21. (M3–M7 + V2 tasks are checklists inside their epics — expand into issues when reached.)
+- **Open work issues:** M2 #18–#21. (M3–M7 + V2 tasks are checklists inside their epics — expand into issues when reached.)
 
 ## Schema cheat-sheet (`supabase/migrations/0001_init.sql`)
 
@@ -80,3 +82,9 @@ uv run leadmachine hello               # smoke test
 - **Built & shipped M0:** monorepo scaffold, Supabase project provisioned (eu-north-1) + schema/RLS/seed applied, typed client wired, CI green. Commits `cbaff15` (plan), `e0feb1d` (scaffold), `abb869f` (provision + typed client).
 - Decisions: reviews → V2; phone-first; free-first; CVR-as-discovery.
 - **Stopped at:** M0 done, ready to start M1. SessionStart hook was blocked by the auto-mode classifier (agent self-config) — using `scripts/setup.sh` instead.
+
+### Session 2 — 2026-06-22
+- **Built M1 (CVR discovery)** entirely against mocked CVR responses (creds not yet obtained), per the resume-point instruction. New package `services/worker/src/leadmachine/cvr/`: `branchekoder.py` (#15), `query.py` (#16), `mapper.py`, `client.py` (#14), `discovery.py` (#17); facade + `CvrClient` Protocol in `__init__.py`. Config default ES URL → `cvr-permanent/virksomhed/_search`. CLI gained `discover` + `categories`.
+- **Tests:** added `tests/conftest.py` (fakes + `httpx.MockTransport` scroll emulator + `tests/fixtures/cvr_companies.json`) and 5 test modules. **32 passed, ruff clean.** Verified scroll pagination, suppression (reklame + bankrupt), CVR# dedup, contact/employment mapping, query-builder clauses.
+- **Scope call:** production-unit fetching (mentioned in #14 acceptance) deferred to M3 enrichment, where per-location P-numbers are actually consumed; the client supports it by pointing at the produktionsenhed index.
+- **Next:** obtain CVR creds → live `discover` run to close #14–#17; then M2 (website qualification, #18–#21).

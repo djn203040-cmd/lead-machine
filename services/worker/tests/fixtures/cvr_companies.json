@@ -1,0 +1,92 @@
+[
+  {
+    "Vrvirksomhed": {
+      "cvrNummer": 12345678,
+      "reklamebeskyttet": false,
+      "telefonNummer": [
+        {"kontaktoplysning": "11112222", "hemmelig": false, "periode": {"gyldigFra": "2015-01-01", "gyldigTil": "2018-01-01"}},
+        {"kontaktoplysning": "99998888", "hemmelig": true, "periode": {"gyldigFra": "2018-01-01", "gyldigTil": null}},
+        {"kontaktoplysning": "12345678", "hemmelig": false, "periode": {"gyldigFra": "2018-01-01", "gyldigTil": null}}
+      ],
+      "elektroniskPost": [
+        {"kontaktoplysning": "kontakt@salonklip.dk", "hemmelig": false, "periode": {"gyldigFra": "2018-01-01", "gyldigTil": null}}
+      ],
+      "hjemmeside": [
+        {"kontaktoplysning": "https://www.facebook.com/salonklip", "hemmelig": false, "periode": {"gyldigFra": "2018-01-01", "gyldigTil": null}}
+      ],
+      "navne": [
+        {"navn": "Salon Klip ApS", "periode": {"gyldigFra": "2018-01-15", "gyldigTil": null}}
+      ],
+      "virksomhedMetadata": {
+        "nyesteNavn": {"navn": "Salon Klip ApS"},
+        "nyesteHovedbranche": {"branchekode": "960210", "branchetekst": "Frisørsaloner"},
+        "nyesteBeliggenhedsadresse": {
+          "vejnavn": "Nørrebrogade", "husnummerFra": 12, "bogstavFra": "A",
+          "etage": "1", "sidedoer": "tv",
+          "postnummer": 2200, "postdistrikt": "København N",
+          "kommune": {"kommuneKode": 101, "kommuneNavn": "København"}
+        },
+        "nyesteVirksomhedsform": {"virksomhedsformkode": 80, "kortBeskrivelse": "APS", "langBeskrivelse": "Anpartsselskab"},
+        "nyesteMaanedsbeskaeftigelse": {"aar": 2026, "maaned": 4, "antalAnsatte": 3, "intervalKodeAntalAnsatte": "ANTAL_2_4"},
+        "sammensatStatus": "NORMAL",
+        "stiftelsesDato": "2018-01-15"
+      }
+    }
+  },
+  {
+    "Vrvirksomhed": {
+      "cvrNummer": 23456789,
+      "reklamebeskyttet": true,
+      "virksomhedMetadata": {
+        "nyesteNavn": {"navn": "Restaurant Hemmelig ApS"},
+        "nyesteHovedbranche": {"branchekode": "561010", "branchetekst": "Restauranter"},
+        "nyesteBeliggenhedsadresse": {
+          "vejnavn": "Vestergade", "husnummerFra": 5,
+          "postnummer": 8000, "postdistrikt": "Aarhus C",
+          "kommune": {"kommuneKode": 751, "kommuneNavn": "Aarhus"}
+        },
+        "nyesteVirksomhedsform": {"virksomhedsformkode": 80, "kortBeskrivelse": "APS", "langBeskrivelse": "Anpartsselskab"},
+        "sammensatStatus": "NORMAL",
+        "stiftelsesDato": "2019-05-01"
+      }
+    }
+  },
+  {
+    "Vrvirksomhed": {
+      "cvrNummer": 34567890,
+      "reklamebeskyttet": false,
+      "virksomhedMetadata": {
+        "nyesteNavn": {"navn": "Tømrer Jensen"},
+        "nyesteHovedbranche": {"branchekode": "433200", "branchetekst": "Tømrer- og bygningssnedkervirksomhed"},
+        "nyesteBeliggenhedsadresse": {
+          "vejnavn": "Industrivej", "husnummerFra": 7,
+          "postnummer": 5000, "postdistrikt": "Odense C",
+          "kommune": {"kommuneKode": 461, "kommuneNavn": "Odense"}
+        },
+        "nyesteVirksomhedsform": {"virksomhedsformkode": 10, "kortBeskrivelse": "ENK", "langBeskrivelse": "Enkeltmandsvirksomhed"},
+        "nyesteAarsbeskaeftigelse": {"aar": 2023, "antalAnsatte": 1, "intervalKodeAntalAnsatte": "ANTAL_1_1"},
+        "sammensatStatus": "OPLØST EFTER KONKURS",
+        "stiftelsesDato": "2010-03-03"
+      }
+    }
+  },
+  {
+    "Vrvirksomhed": {
+      "cvrNummer": 12345678,
+      "reklamebeskyttet": false,
+      "virksomhedMetadata": {
+        "nyesteNavn": {"navn": "Salon Klip ApS (samme CVR, ny optælling)"},
+        "nyesteHovedbranche": {"branchekode": "960210", "branchetekst": "Frisørsaloner"},
+        "nyesteBeliggenhedsadresse": {
+          "vejnavn": "Nørrebrogade", "husnummerFra": 12, "bogstavFra": "A",
+          "postnummer": 2200, "postdistrikt": "København N",
+          "kommune": {"kommuneKode": 101, "kommuneNavn": "København"}
+        },
+        "nyesteVirksomhedsform": {"virksomhedsformkode": 80, "kortBeskrivelse": "APS", "langBeskrivelse": "Anpartsselskab"},
+        "nyesteMaanedsbeskaeftigelse": {"aar": 2026, "maaned": 5, "antalAnsatte": 4, "intervalKodeAntalAnsatte": "ANTAL_2_4"},
+        "sammensatStatus": "NORMAL",
+        "stiftelsesDato": "2018-01-15"
+      }
+    }
+  }
+]
