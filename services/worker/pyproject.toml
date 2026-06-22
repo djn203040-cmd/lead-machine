@@ -1,0 +1,34 @@
+[project]
+name = "leadmachine-worker"
+version = "0.1.0"
+description = "Lead Machine discovery & enrichment worker"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.27",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "supabase>=2.6",
+  "typer>=0.12",
+  "tenacity>=8.4",
+]
+
+[project.scripts]
+leadmachine = "leadmachine.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8.2", "ruff>=0.5"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/leadmachine"]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
