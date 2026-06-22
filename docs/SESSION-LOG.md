@@ -8,8 +8,24 @@
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
 - **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) cores BUILT against mocks** (pending live run) · **next = M4 (scoring & qualification gate, #5)**.
-- **Branch:** `claude/compassionate-goldberg-x7nu36` (also fast-forwarded to `main`) · latest commit = the M2 commit below.
+- **Branch:** `claude/compassionate-goldberg-x7nu36` == `main`, both at **`4fe09d1`** (M1+M2+M3 all on main, working tree clean).
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
+
+### ▶ Next task — M4: scoring & qualification gate ([#5](https://github.com/djn203040-cmd/lead-machine/issues/5))
+Turn the enriched signals into a 0–100 "needs a website now" score + ranking. All inputs already exist on `leads` + `lead_enrichment`; this is pure computation (no new network), so build + test it fully here (no live blockers).
+
+- **Suggested layout:** new `services/worker/src/leadmachine/scoring/` — `models.py` (`LeadToScore`, `ScoreBreakdown`), `rubric.py` (per-factor functions + weights), `score.py` (`score_lead()` → total+breakdown; `run_scoring()` + `SupabaseScoreWriter`), CLI `score`.
+- **Rubric (PLAN §5 / research §3), weights sum 100:**
+  - **Website-need 45** ← `leads.website_need`: none/dead/parked/facebook_only = 45; `bad` from `lead_enrichment.website.signals` (no viewport +12, no https +10, legacy +8, old copyright +6, PSI perf <50 +6 / 50–69 +3, one-page +3, cap 45); `outdated` mid; `modern` ~0–5.
+  - **Budget 20** ← `leads.employees_band`/`employees_exact` (1→4, 2–4→10, 5–9→16, 10–49→20, 50+→14, 0→4) + `lead_enrichment.financial` revenue/equity bump.
+  - **Presence 15** ← `lead_enrichment.social` (has_fb_page / has_meta_pixel). *(Reviews are V2 — presence in V1 = social only.)*
+  - **Industry 12** ← `leads.branchekode` via `cvr.branchekoder` group (local-service →12, marginal →6, poor →0).
+  - **Recency 8** ← active CVR status (already gated at discovery) + `founded_at`; reviews-recency is V2.
+- **Hard gate:** `reklamebeskyttet`/inactive are already suppressed at discovery, but encode the gate defensively (score 0 / skip).
+- **Persistence:** update `leads.score` + upsert `lead_scores` (total + `breakdown` jsonb + scored_at). Make weights honor `scoring_criteria` (11 seeded rows) so they're tunable without code.
+- **Then:** M5 leads dashboard (#6) surfaces ranked leads; M6 Claude angles (#7); M7 compliance/deploy (#8).
+
+### Built so far (mock-tested, all on main)
 
 ### M1: CVR discovery ([#2](https://github.com/djn203040-cmd/lead-machine/issues/2)) — built (mock-tested)
 All four work issues implemented under `services/worker/src/leadmachine/cvr/`, 32 tests green, ruff clean:
@@ -105,22 +121,17 @@ uv run leadmachine hello               # smoke test
 - Decisions: reviews → V2; phone-first; free-first; CVR-as-discovery.
 - **Stopped at:** M0 done, ready to start M1. SessionStart hook was blocked by the auto-mode classifier (agent self-config) — using `scripts/setup.sh` instead.
 
-### Session 2 — 2026-06-22
-- **Built M1 (CVR discovery)** entirely against mocked CVR responses (creds not yet obtained), per the resume-point instruction. New package `services/worker/src/leadmachine/cvr/`: `branchekoder.py` (#15), `query.py` (#16), `mapper.py`, `client.py` (#14), `discovery.py` (#17); facade + `CvrClient` Protocol in `__init__.py`. Config default ES URL → `cvr-permanent/virksomhed/_search`. CLI gained `discover` + `categories`.
-- **Tests:** added `tests/conftest.py` (fakes + `httpx.MockTransport` scroll emulator + `tests/fixtures/cvr_companies.json`) and 5 test modules. **32 passed, ruff clean.** Verified scroll pagination, suppression (reklame + bankrupt), CVR# dedup, contact/employment mapping, query-builder clauses.
-- **Scope call:** production-unit fetching (mentioned in #14 acceptance) deferred to M3 enrichment, where per-location P-numbers are actually consumed; the client supports it by pointing at the produktionsenhed index.
-- **Next:** obtain CVR creds → live `discover` run to close #14–#17; then M2 (website qualification, #18–#21).
+### Session 2 — 2026-06-22  (M1 + M3 + M2 — discovery, enrichment, qualification)
+Built three worker milestones in one session, each **free-first and fully mock-tested** (no live creds needed to develop), then pushed each to `main`. End state: **91 tests green, ruff clean, lockfile synced; branch == main == `4fe09d1`.**
 
-### Session 3 — 2026-06-22
-- **Pushed M1 to `main`** (fast-forward `3b2e0ab..69d0f55`).
-- **Built M3 (financial enrichment) core** against mocks: new `financial/` package (XBRL fetch+parse, sector revenue estimation, enrichment job + Supabase writer) + `cvr/mapper.extract_management()` for best-effort CVR decision-makers. Extracted shared `_http.py`. CLI `enrich-financial`. **+22 tests → 54 total, ruff clean.**
-- **Scope confirmed w/ user:** financials core + CVR owners; **website contact-scrape deferred to M2** (needs Scrapling website-fetch infra). P-units deferred (not acceptance-gating).
-- **Live note:** outbound to `distribution.virk.dk` is 403 in this sandbox; `offentliggoerelser` is free/unauth, so a worker-host run needs no creds. CVR discovery still needs the ES creds.
-- **Next:** M2 (website qualification, #18–#21) to complete qualification signals, then M4 (scoring) which consumes M2 `website_need` + M3 financials.
+**M1 — CVR discovery** (`cvr/`, #14–#17): `branchekoder.py` catalog, `query.py` `SearchParameters`+`build_es_query`, `client.py` `EsCvrClient` (Basic auth, scroll, retries, injectable httpx behind `CvrClient` Protocol), `mapper.py` (`Vrvirksomhed`→lead), `discovery.py` `run_discovery`+`SupabaseLeadWriter` (CVR# dedup, raw→`lead_enrichment.cvr`, suppress reklamebeskyttet/inactive). CLI `discover`,`categories`. Pushed `3b2e0ab..69d0f55`.
 
-### Session 4 — 2026-06-22
-- **Built M2 (website qualification)** against mocks — the core "no/bad website" qualifier. New `website/` package: resolve → DNS dead/parked → httpx fetch (https→http fallback) → stdlib HTML analyze (viewport/HTTPS/legacy/CMS/copyright/FB/pixel/one-page) → gated PageSpeed → `website_need` ladder + evidence. Job `run_qualification` + `SupabaseWebsiteWriter`; CLI `qualify`. **+37 tests → 91 total, ruff clean.**
-- **Deps:** added `dnspython` (pure-Python) for NXDOMAIN/parking-NS detection; lockfile updated, `uv sync --frozen` clean.
-- **Design:** Scrapling `StealthyFetcher` left as the documented escalation behind the `WebsiteFetcher` Protocol (browser dep, add on worker host); enthec/webappanalyzer fingerprints can replace the DIY CMS detector for breadth.
-- **Pushed M3 then M2 to `main`** (fast-forwards).
-- **Next:** M4 — scoring & qualification gate (#5): 0–100 website-selling score (website-need 45 / budget 20 / presence 15 / industry 12 / recency 8) + hard gates (reklamebeskyttet/inactive already suppressed at discovery) consuming M2 `website_need` + M3 financials/employees + social presence.
+**M3 — financial enrichment** (`financial/`, #4): `client.py` `FinancialClient` (Virk offentliggoerelser, free/unauth), `xbrl.py` `parse_xbrl` (primary-period fsa facts, stdlib ElementTree), `estimate.py` (actual→gross-margin→per-employee + sector benchmarks), `enrich.py` `run_financial_enrichment`+`SupabaseFinancialWriter`→`lead_enrichment.financial`/`.contact`; `cvr/mapper.extract_management()` (CVR decision-makers). Extracted shared `_http.py`. CLI `enrich-financial`. Pushed `69d0f55..37a2666`.
+
+**M2 — website qualification** (`website/`, #3/#18–#21): the core qualifier. `resolve.py` (none/social/free_subdomain/url), `domain.py` `DnsResolver`+`classify_domain` (dead/parked), `fetch.py` `HttpxFetcher` (https→http fallback), `analyze.py` (viewport/HTTPS/legacy/CMS/copyright/FB/pixel/one-page), `pagespeed.py` (gated PSI), `classify.py` ladder→`leads.website_need`+`lead_enrichment.website`/`.social`, `qualify.py` `run_qualification`+`SupabaseWebsiteWriter`. CLI `qualify`. Added `dnspython`. Pushed `37a2666..4fe09d1`.
+
+**Decisions/scope this session:** P-units deferred (not acceptance-gating; client supports the produktionsenhed index); website contact-scrape folded into M2; Scrapling `StealthyFetcher` documented as the escalation behind `WebsiteFetcher` (browser dep, add on worker host); enthec/webappanalyzer fingerprints can replace the DIY CMS detector later.
+
+**Blockers (live runs only — all code is mock-tested):** sandbox blocks outbound to `distribution.virk.dk` (CVR ES + offentliggoerelser) and the open web, so live `discover`/`enrich-financial`/`qualify` must run from the worker host. M1 still needs CVR ES creds; offentliggoerelser + website fetch need none; PSI optional via `PAGESPEED_API_KEY`. After a live pass, close #14–#21 (#2/#3/#4).
+
+**Stopped at:** M2 pushed to main. **Next = M4 scoring (#5)** — see "▶ Next task" at top.
