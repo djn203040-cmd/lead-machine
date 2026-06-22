@@ -7,20 +7,20 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) + M4 (scoring) + M5 (leads dashboard) cores BUILT** (M1–M3 pending a live run; M4 needs none; M5 builds green — live verify needs real data) · **next = M6 (Claude Danish sales angles, #7)**.
-- **Branch:** working branch `claude/exciting-tesla-o21we4`. **`main` now holds M1–M4** (fast-forwarded to `5c27e35`); the M5 dashboard sits on the working branch on top of that. Working tree clean.
+- **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) + M4 (scoring) + M5 (leads dashboard) + M6 (Claude Danish sales angles) cores BUILT** (M1–M3 pending a live run; M4 needs none; M5 builds green; M6 mock-tested — live needs `ANTHROPIC_API_KEY`) · **next = M7 (compliance, deploy & ship V1, #8)**.
+- **Branch:** working branch `claude/exciting-tesla-o21we4`; pushed to **`main`** after each milestone (fast-forward). `main` holds M1–M6. Working tree clean.
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
 
-### ▶ Next task — M6: AI Danish sales angles ([#7](https://github.com/djn203040-cmd/lead-machine/issues/7))
-Generate a per-lead Danish pitch with Claude and write it to `lead_angles` (table already exists; the M5 lead-detail page has a spot to surface it). This is a **worker** milestone (`services/worker`) plus a small read-only UI panel.
+### ▶ Next task — M7: compliance, deploy & ship V1 ([#8](https://github.com/djn203040-cmd/lead-machine/issues/8))
+The whole V1 pipeline (discover → qualify → enrich → score → dashboard → angles) is code-complete. M7 is the **ship** milestone: make it legal, deployed, and observable. **Much of this is ops/docs, not feature code** — and several pieces need a live worker host + real keys, so do the writable docs/UI here and stage the deploy steps.
 
-- **Worker:** new `services/worker/src/leadmachine/angles/` — build a typed prompt from the lead's signals (`leads` firmographics + `lead_enrichment.website/financial/social` + `lead_scores.breakdown` "why it's a good lead"), call Claude (latest model; key via `ANTHROPIC_API_KEY` — already in `.env.example`/blockers table), parse to `lead_angles` columns: `summary_da`, `weaknesses_da`, `angle_da`, `opening_line_da`, `competitor_name`, `competitor_angle_type` (`fomo`/`first_mover`/`none`). Mirror the established shape: `models.py` + `generate.py` `run_angles()` + `SupabaseAngleWriter`, CLI `leadmachine angles`. **Mock the Claude client behind a Protocol** so it tests with no network/key (like the CVR/financial clients).
-- **Prompt:** Danish output, phone-first framing (a call opener, not an email). Use the score breakdown to ground the "why now" and the website weaknesses as the concrete hook. Keep it cheap (small max_tokens; one call per lead).
-- **UI:** add a read-only "Salgsvinkel" section to `/leads/[id]` (the detail page already leaves room) — summary, weaknesses, angle, opening line. Optionally a "generér" affordance later.
-- **Use the `claude-api` skill / `RESEARCH` doc for current model id + SDK usage; don't hardcode an old model.**
-- **Then:** M7 compliance/deploy (#8) — LIA/privacy/suppression, Vercel + worker host, observability; finally close the M1–M5 epics after a live pass. A **search-builder UI** (create `searches` rows to trigger new discovery) and lead **assignment/archive** were deferred from M5 — fold into M5 follow-up or M7.
+- **Compliance (Denmark, PLAN §8):** write the **LIA** (legitimate-interest assessment) + an **Art. 14 privacy notice** delivered at first contact (state source = CVR) → `docs/`. Suppression is already enforced at discovery (`reklamebeskyttet` + non-active status) — add **Robinson-list screening for sole traders** (`leads.is_sole_trader` is already captured) before any outreach. Keep V1 **phone-first**; do not add an email-send channel (Markedsføringsloven §10).
+- **Deploy:** Vercel for `apps/web` (env: `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY`), Supabase already live (`dxkxamlwucknndcqqtrj`), and a small **worker host** (Fly.io/Railway — Scrapling needs a real browser, so not serverless). Document the env matrix; the `jobs` table already exists as the worker queue if you want scheduled runs.
+- **Observability + E2E:** a `jobs`-backed run log / status surface; a first **live pass** of `discover → qualify → enrich-financial → score → angles` against real CVR creds + keys, then **close the M1–M6 epics** (#2/#3/#4/#5/#6/#7) once acceptance is confirmed on real data.
+- **Deferred from earlier milestones (fold in here or as follow-ups):** a **search-builder UI** to create `searches` rows that trigger new discovery (`leadmachine discover --search-id`), lead **assignment/archive** UI, and a **"generér vinkel"** button on the lead page (calls the M6 worker on demand). **V2:** reviews/reputation + outreach automation (#9).
+- **Blockers needing a live host (can't run in this sandbox):** CVR ES creds (#14), `ANTHROPIC_API_KEY` (M6), `PAGESPEED_API_KEY` (optional), Supabase `service_role` key — all in the table below.
 
-### Built so far (M1–M4 on `main`; M5 on the working branch)
+### Built so far (M1–M6 on `main`)
 
 ### M1: CVR discovery ([#2](https://github.com/djn203040-cmd/lead-machine/issues/2)) — built (mock-tested)
 All four work issues implemented under `services/worker/src/leadmachine/cvr/`, 32 tests green, ruff clean:
@@ -70,6 +70,14 @@ First web milestone. Next.js 15 (App Router) + Supabase SSR; Danish UI; `pnpm --
 - **Shared** (`apps/web/lib/`) — `branchekoder.ts` (group mirror of the worker catalog — keep in sync), `leadmeta.ts` (badges + da-DK formatters), `score-breakdown.ts` + `enrichment.ts` (typed views over the jsonb). `leads/layout.tsx` header + sign-out; `_components/Badge.tsx`.
 - **Toolchain note:** supabase-js 2.108's typed client infers select `data` and insert/update params as `never` with our generated types — the list query uses `.returns<>()`, the detail page asserts the `Tables<>` row types, and writes use `satisfies <T> as never` (payload shape stays checked). If this gets annoying, pin/upgrade supabase-js or regen types to match.
 - **Deferred:** search-builder UI (create `searches` rows for new discovery runs), lead assignment/archive, and live verification against real data.
+
+### M6: AI Danish sales angles ([#7](https://github.com/djn203040-cmd/lead-machine/issues/7)) — core built (mock-tested)
+New package `services/worker/src/leadmachine/angles/`; +17 tests (150 total), ruff clean. Added `anthropic>=0.111.0` (lockfile updated). Consulted the `claude-api` skill for the model + SDK shape.
+- **Model:** `claude-opus-4-8` via the Anthropic Python SDK (the skill says don't downgrade for cost on our own). **Structured output**: `messages.create(..., output_config={"format": {"type": "json_schema", "schema": ANGLE_SCHEMA}})` → `json.loads` the text block (verified the param/shape against the installed SDK). `thinking` omitted (simple, schema-constrained). `max_tokens=2048`.
+- **`prompt.py`** — builds a factual Danish brief from the lead's signals (firmographics + website weaknesses derived from `website.signals`/`website_need` + revenue estimate + social + `lead_scores.breakdown` factors) and a fixed English system prompt requiring Danish, **phone-first** output (a cold-call opener, not email).
+- **`models.py`** `LeadForAngle`/`Angle` (`from_payload` coerces `competitor_angle_type` to the CHECK set + blanks→null); **`client.py`** `ClaudeAnglesClient` (anthropic import **lazy** in `from_settings` so tests need no key/SDK) behind `AnglesClientProtocol`; **`generate.py`** `generate_one` + `run_angles` + `SupabaseAngleWriter` → upsert `lead_angles`. CLI `leadmachine angles` (`--only-missing` skips leads that already have one).
+- **UI:** read-only **"Salgsvinkel"** section at the top of `/leads/[id]` — the opening line as a quote + resumé/vinkel/svagheder + competitor-angle tag.
+- **Live note:** the actual Claude call needs `ANTHROPIC_API_KEY` + outbound to `api.anthropic.com` (sandbox-blocked); the code path is API-shape-verified against `anthropic==0.111.0`.
 
 ### To run the project locally
 ```bash
@@ -121,8 +129,9 @@ uv run leadmachine hello               # smoke test
 - **M3 financial enrichment — core code complete (mock-tested), not yet closed** ([#4]). Financials + revenue estimate + CVR contacts done; website contact-scrape folded into M2. Close after a live run.
 - **M4 scoring & qualification gate — code complete (mock-tested), not yet closed** ([#5]). Pure computation; no live run needed. Close once a live worker pass has populated real signals to score.
 - **M5 leads dashboard — core code complete (builds green), not yet closed** ([#6]). List + detail + pipeline done; search-builder UI + assignment/archive deferred. Close after live verification against real data.
+- **M6 AI Danish sales angles — core code complete (mock-tested), not yet closed** ([#7]). Worker + read-only UI done; needs `ANTHROPIC_API_KEY` for a live run. Close after a live pass.
 - **Open epics:** M1 [#2], M2 [#3], M3 [#4], M4 [#5], M5 [#6], M6 [#7], M7 [#8], V2 [#9].
-- **Open work issues:** none (M6–M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
+- **Open work issues:** none (M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
 
 ## Schema cheat-sheet (`supabase/migrations/0001_init.sql`)
 
@@ -166,3 +175,10 @@ Built **M4** (`scoring/`, #5) — the last worker milestone — on branch `claud
 - **Built M5 core** — the leads dashboard in `apps/web` (Next.js 15 + Supabase SSR). List with URL-driven filters + pagination (ranked by score); rich lead detail with the explainable score breakdown + enrichment + phone-first contact; pipeline management (status / notes / follow-ups) via server actions. Shared lib: branchekode group mirror, badges + da-DK formatters, typed jsonb views. `pnpm --filter web lint` + `build` both green.
 - **Toolchain snag:** supabase-js 2.108 typed-client infers `data`/write-params as `never` with our generated types → used `.returns<>()` / `Tables<>` assertions / `satisfies <T> as never` (the list page already did this). Noted for a future supabase-js pin or type regen.
 - **Stopped at:** M5 core committed on `claude/exciting-tesla-o21we4`. **Next = M6 Claude Danish sales angles (#7)** — see "▶ Next task" at top.
+
+### Session 5 — 2026-06-22  (push M5 to main · M6 Claude Danish sales angles)
+- **Pushed M5 to `main`** (fast-forward to `3290759`). Established the per-milestone flow: build → update log → push branch + fast-forward `main`.
+- **Built M6 core** — `angles/` worker package + a read-only "Salgsvinkel" UI section on `/leads/[id]`. **+17 tests → 150 green, ruff clean; web lint + build green.** Consulted the `claude-api` skill: **`claude-opus-4-8`**, structured output via `output_config.format` (json_schema) on `messages.create`, `thinking` omitted, `max_tokens=2048`. Added `anthropic>=0.111.0` (uv resolved/locked; PyPI reachable) and **verified the `output_config`/`json_schema` shape against the installed SDK**. Claude client behind `AnglesClientProtocol` with a **lazy** SDK import, so tests run with no key/network (mock client).
+- **Prompt:** factual Danish brief from the lead's signals + a phone-first system prompt (cold-call opener, never email). Grounds "why now" in `lead_scores.breakdown` and the hook in the website weaknesses.
+- **Live blocker only:** the real Claude call needs `ANTHROPIC_API_KEY` + outbound to `api.anthropic.com` (sandbox-blocked) — code path is API-shape-verified.
+- **Stopped at:** M6 committed on `claude/exciting-tesla-o21we4` + pushed to `main`. **Next = M7 compliance/deploy/ship (#8)** — see "▶ Next task" at top.
