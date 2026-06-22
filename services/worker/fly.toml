@@ -1,0 +1,34 @@
+# Fly.io config for the Lead Machine worker.
+#
+# The worker is not a web service — it runs CLI pipeline commands. We keep a
+# tiny always-on machine you can `fly ssh console` / `fly machine exec` into,
+# and drive scheduled runs from it (see docs/DEPLOY.md).
+#
+# Set secrets (never commit them):
+#   fly secrets set SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+#                   CVR_ES_USER=... CVR_ES_PASSWORD=... \
+#                   ANTHROPIC_API_KEY=... PAGESPEED_API_KEY=... \
+#                   ROBINSON_LIST_PATH=/data/robinson.txt
+
+app = "lead-machine-worker"
+primary_region = "arn"  # Stockholm — keep data in the EU (eu-north-1 Supabase)
+
+[build]
+  dockerfile = "Dockerfile"
+
+# No [http_service]: this app exposes no port. Keep one small machine running so
+# cron/exec has somewhere to land; it idles cheaply.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# Override the image default (`hello`) so the always-on process just sleeps;
+# real work is triggered via `fly machine exec` / a scheduler.
+[processes]
+  app = "sleep infinity"
+
+# Optional: a persistent volume to hold the Robinson list + any local state.
+# Create it once:  fly volumes create lm_data --size 1 --region arn
+[mounts]
+  source = "lm_data"
+  destination = "/data"

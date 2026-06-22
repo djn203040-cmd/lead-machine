@@ -276,8 +276,11 @@ export type Database = {
           pipeline_status: string
           postal_code: string | null
           reklamebeskyttet: boolean
+          robinson_screened_at: string | null
           score: number | null
           search_id: string | null
+          suppressed: boolean
+          suppression_reason: string | null
           updated_at: string
           website: string | null
           website_need: string
@@ -305,8 +308,11 @@ export type Database = {
           pipeline_status?: string
           postal_code?: string | null
           reklamebeskyttet?: boolean
+          robinson_screened_at?: string | null
           score?: number | null
           search_id?: string | null
+          suppressed?: boolean
+          suppression_reason?: string | null
           updated_at?: string
           website?: string | null
           website_need?: string
@@ -334,8 +340,11 @@ export type Database = {
           pipeline_status?: string
           postal_code?: string | null
           reklamebeskyttet?: boolean
+          robinson_screened_at?: string | null
           score?: number | null
           search_id?: string | null
+          suppressed?: boolean
+          suppression_reason?: string | null
           updated_at?: string
           website?: string | null
           website_need?: string

@@ -21,5 +21,9 @@ class Settings(BaseSettings):
     pagespeed_api_key: str = ""
     anthropic_api_key: str = ""
 
+    # Compliance — local path to the Robinson opt-out register (provisioned
+    # out-of-band on the worker host; licensed data, never committed).
+    robinson_list_path: str = ""
+
 
 settings = Settings()

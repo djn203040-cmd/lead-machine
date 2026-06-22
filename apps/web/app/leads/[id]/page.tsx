@@ -124,6 +124,15 @@ export default async function LeadDetailPage({
         <PipelineBadge status={lead.pipeline_status} />
       </div>
 
+      {lead.suppressed && (
+        <div className="mb-6 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          <span className="font-semibold">Undertrykt — må ikke kontaktes.</span>{" "}
+          {lead.suppression_reason === "robinson"
+            ? "Indehaveren står på Robinsonlisten (frabedt sig markedsføring)."
+            : "Dette lead er markeret som undertrykt."}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {angle && (

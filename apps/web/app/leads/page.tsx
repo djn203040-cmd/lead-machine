@@ -52,7 +52,8 @@ export default async function LeadsPage({
       "id, company_name, city, branche_text, branchekode, employees_band, employees_exact, website_need, score, pipeline_status, phone",
       { count: "exact" },
     )
-    .eq("is_archived", false);
+    .eq("is_archived", false)
+    .eq("suppressed", false); // Robinson-listed / suppressed leads are never shown for outreach
 
   if (filters.q) query = query.ilike("company_name", `%${filters.q}%`);
   if (filters.need) query = query.eq("website_need", filters.need);

@@ -61,6 +61,7 @@ def discover(
     from .config import settings
     from .cvr import EsCvrClient, SearchParameters, SupabaseLeadWriter, run_discovery
     from .db import get_client
+    from .jobs import JobRun
 
     db = get_client()
 
@@ -75,14 +76,16 @@ def discover(
         )
 
     writer = SupabaseLeadWriter(db)
-    with EsCvrClient.from_settings(settings) as client:
-        if search_id:
-            db.table("searches").update({"status": "running"}).eq("id", search_id).execute()
-        stats = run_discovery(client, params, writer, search_id=search_id)
-        if search_id:
-            db.table("searches").update(
-                {"status": "completed", "stats": stats.as_dict()}
-            ).eq("id", search_id).execute()
+    with JobRun(db, "discover", search_id=search_id) as job:
+        with EsCvrClient.from_settings(settings) as client:
+            if search_id:
+                db.table("searches").update({"status": "running"}).eq("id", search_id).execute()
+            stats = run_discovery(client, params, writer, search_id=search_id)
+            if search_id:
+                db.table("searches").update(
+                    {"status": "completed", "stats": stats.as_dict()}
+                ).eq("id", search_id).execute()
+        job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
@@ -100,6 +103,7 @@ def enrich_financial(
         run_financial_enrichment,
     )
     from .financial.models import LeadToEnrich
+    from .jobs import JobRun
 
     db = get_client()
     res = (
@@ -127,8 +131,10 @@ def enrich_financial(
         )
 
     writer = SupabaseFinancialWriter(db)
-    with FinancialClient.from_settings(settings) as client:
-        stats = run_financial_enrichment(leads, client, writer)
+    with JobRun(db, "enrich-financial", payload={"limit": limit}) as job:
+        with FinancialClient.from_settings(settings) as client:
+            stats = run_financial_enrichment(leads, client, writer)
+        job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
@@ -150,6 +156,7 @@ def qualify(
         run_qualification,
     )
     from .website.models import LeadToQualify
+    from .jobs import JobRun
 
     db = get_client()
     query = db.table("leads").select("id,website").not_.is_("cvr_number", "null")
@@ -160,13 +167,15 @@ def qualify(
 
     psi = PageSpeedClient.from_settings(settings) if settings.pagespeed_api_key else None
     fetcher = HttpxFetcher()
-    try:
-        deps = WebsiteDeps(fetcher=fetcher, resolver=DnsResolver(), pagespeed=psi)
-        stats = run_qualification(leads, deps, SupabaseWebsiteWriter(db))
-    finally:
-        fetcher.close()
-        if psi is not None:
-            psi.close()
+    with JobRun(db, "qualify", payload={"limit": limit, "only_unknown": only_unknown}) as job:
+        try:
+            deps = WebsiteDeps(fetcher=fetcher, resolver=DnsResolver(), pagespeed=psi)
+            stats = run_qualification(leads, deps, SupabaseWebsiteWriter(db))
+        finally:
+            fetcher.close()
+            if psi is not None:
+                psi.close()
+        job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
@@ -180,6 +189,7 @@ def score(
 ) -> None:
     """Compute the 0–100 website-selling score + ranked breakdown for each lead."""
     from .db import get_client
+    from .jobs import JobRun
     from .scoring import LeadToScore, SupabaseScoreWriter, Weights, run_scoring
 
     db = get_client()
@@ -217,7 +227,9 @@ def score(
             )
         )
 
-    stats = run_scoring(leads, SupabaseScoreWriter(db), weights=weights)
+    with JobRun(db, "score", payload={"limit": limit, "only_qualified": only_qualified}) as job:
+        stats = run_scoring(leads, SupabaseScoreWriter(db), weights=weights)
+        job.result = stats.as_dict()
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
 
@@ -234,6 +246,7 @@ def angles(
     from .config import settings
     from .db import get_client
     from .financial.estimate import band_midpoint
+    from .jobs import JobRun
 
     db = get_client()
     res = (
@@ -273,8 +286,61 @@ def angles(
             )
         )
 
-    with ClaudeAnglesClient.from_settings(settings) as client:
-        stats = run_angles(leads, client, SupabaseAngleWriter(db))
+    with JobRun(db, "angles", payload={"limit": limit, "only_missing": only_missing}) as job:
+        with ClaudeAnglesClient.from_settings(settings) as client:
+            stats = run_angles(leads, client, SupabaseAngleWriter(db))
+        job.result = stats.as_dict()
+
+    typer.echo(json.dumps(stats.as_dict(), indent=2))
+
+
+@app.command()
+def screen(
+    limit: int = typer.Option(1000, help="Max sole-trader leads to screen in this run."),
+) -> None:
+    """Screen sole-trader leads against the Robinson opt-out list (compliance gate).
+
+    Loads the register from ``ROBINSON_LIST_PATH`` and flags any matched lead as
+    suppressed so it is excluded from every outreach surface. Limited companies
+    are skipped (legal persons, out of Robinson scope).
+    """
+    from .compliance import LeadToScreen, RobinsonList, SupabaseScreeningWriter, run_robinson_screening
+    from .config import settings
+    from .db import get_client
+    from .jobs import JobRun
+
+    db = get_client()
+    robinson = RobinsonList.load(settings.robinson_list_path)
+    if robinson.is_empty:
+        typer.secho(
+            "WARNING: Robinson list is empty (ROBINSON_LIST_PATH unset or missing). "
+            "Screening will suppress nothing — do not start live outreach until the "
+            "register is provisioned.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+
+    res = (
+        db.table("leads")
+        .select("id,company_name,postal_code,is_sole_trader")
+        .eq("is_sole_trader", True)
+        .eq("suppressed", False)
+        .limit(limit)
+        .execute()
+    )
+    leads = [
+        LeadToScreen(
+            lead_id=row["id"],
+            company_name=row["company_name"],
+            postal_code=row.get("postal_code"),
+            is_sole_trader=bool(row.get("is_sole_trader")),
+        )
+        for row in (res.data or [])
+    ]
+
+    with JobRun(db, "screen", payload={"limit": limit, "list_size": len(robinson)}) as job:
+        stats = run_robinson_screening(leads, robinson, SupabaseScreeningWriter(db))
+        job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 

@@ -7,18 +7,28 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) + M4 (scoring) + M5 (leads dashboard) + M6 (Claude Danish sales angles) cores BUILT** (M1–M3 pending a live run; M4 needs none; M5 builds green; M6 mock-tested — live needs `ANTHROPIC_API_KEY`) · **next = M7 (compliance, deploy & ship V1, #8)**.
-- **Branch:** working branch `claude/exciting-tesla-o21we4`; pushed to **`main`** after each milestone (fast-forward). `main` holds M1–M6. Working tree clean.
+- **State:** V1 · **M0 COMPLETE** · **M1–M6 cores BUILT** · **M7 (#8) code+docs BUILT** — compliance (Robinson screening + LIA + Art. 14 notices), observability (`jobs` run-log), and deploy artifacts/runbook are done & green. **Remaining M7 = live deploy + the one-city E2E pass + closing the M1–M6 epics — all blocked on a live worker host + real creds (can't run in this sandbox).**
+- **Branch:** working branch `claude/resume-point-branch-check-r90jni`. **Correction:** M1–M6 are on `main`; this branch carries M7. (Earlier logs said the working branch was `claude/exciting-tesla-o21we4`.)
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
 
-### ▶ Next task — M7: compliance, deploy & ship V1 ([#8](https://github.com/djn203040-cmd/lead-machine/issues/8))
-The whole V1 pipeline (discover → qualify → enrich → score → dashboard → angles) is code-complete. M7 is the **ship** milestone: make it legal, deployed, and observable. **Much of this is ops/docs, not feature code** — and several pieces need a live worker host + real keys, so do the writable docs/UI here and stage the deploy steps.
+### ▶ Next task — finish shipping M7 ([#8](https://github.com/djn203040-cmd/lead-machine/issues/8)) — needs a live host
+M7 code + docs are **done** (see Session 6). What's left is the part that can't run in this sandbox:
+- **Apply migration `0002_compliance.sql`** to Supabase (`supabase db push`).
+- **Deploy** per [`docs/DEPLOY.md`](DEPLOY.md): web→Vercel, worker→Fly.io (Dockerfile + fly.toml ready), set the env matrix.
+- **Provision the Robinson list** on the worker host, set `ROBINSON_LIST_PATH`, run `leadmachine screen` (warns loudly if the list is empty).
+- **Fill the `[…]` placeholders** in `docs/compliance/LIA.md` + `privacy-notice.md` (controller/contact/URL) and **publish** the privacy notice.
+- **Run the one-city E2E** (`discover → screen → qualify → enrich-financial → score → angles`) against real CVR creds + keys, then **close the M1–M6 epics** (#2/#3/#4/#5/#6/#7) once acceptance is confirmed on real data.
+- **Deferred (V1 follow-ups or V2):** search-builder UI (create `searches` rows), lead assignment/archive UI, a "generér vinkel" button (on-demand M6). **V2:** reviews/reputation + outreach automation (#9).
+- **Blockers needing a live host:** CVR ES creds (#14), `ANTHROPIC_API_KEY` (M6), `PAGESPEED_API_KEY` (optional), Supabase `service_role` key, the **Robinson register file** — see the table below.
 
-- **Compliance (Denmark, PLAN §8):** write the **LIA** (legitimate-interest assessment) + an **Art. 14 privacy notice** delivered at first contact (state source = CVR) → `docs/`. Suppression is already enforced at discovery (`reklamebeskyttet` + non-active status) — add **Robinson-list screening for sole traders** (`leads.is_sole_trader` is already captured) before any outreach. Keep V1 **phone-first**; do not add an email-send channel (Markedsføringsloven §10).
-- **Deploy:** Vercel for `apps/web` (env: `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY`), Supabase already live (`dxkxamlwucknndcqqtrj`), and a small **worker host** (Fly.io/Railway — Scrapling needs a real browser, so not serverless). Document the env matrix; the `jobs` table already exists as the worker queue if you want scheduled runs.
-- **Observability + E2E:** a `jobs`-backed run log / status surface; a first **live pass** of `discover → qualify → enrich-financial → score → angles` against real CVR creds + keys, then **close the M1–M6 epics** (#2/#3/#4/#5/#6/#7) once acceptance is confirmed on real data.
-- **Deferred from earlier milestones (fold in here or as follow-ups):** a **search-builder UI** to create `searches` rows that trigger new discovery (`leadmachine discover --search-id`), lead **assignment/archive** UI, and a **"generér vinkel"** button on the lead page (calls the M6 worker on demand). **V2:** reviews/reputation + outreach automation (#9).
-- **Blockers needing a live host (can't run in this sandbox):** CVR ES creds (#14), `ANTHROPIC_API_KEY` (M6), `PAGESPEED_API_KEY` (optional), Supabase `service_role` key — all in the table below.
+### M7: compliance, deploy & ship — code + docs built (Session 6)
+**Branch `claude/resume-point-branch-check-r90jni`. +20 tests → 165 green, ruff clean; web lint + build green.**
+- **Robinson screening** (`services/worker/.../compliance/`): `robinson.py` `RobinsonList` (loads a licensed opt-out file from `ROBINSON_LIST_PATH`; JSONL or `name;postal` CSV; conservative `name+postal` match, NFKD accent-fold but keeps æ/ø/å) + `screen.py` `run_robinson_screening`/`SupabaseScreeningWriter` (flags **sole traders only**; limited companies skipped). CLI `leadmachine screen` — **warns loudly if the list is empty** so no one starts outreach unscreened. Migration `0002_compliance.sql` adds `leads.suppressed`/`suppression_reason`/`robinson_screened_at` + index, and adds `'robinson'` to the `jobs.type` CHECK.
+- **Observability** (`jobs.py`): `JobRun` context manager wraps every CLI command (`discover`/`qualify`/`enrich-financial`/`score`/`angles`/`screen`) → inserts a `jobs` row `running`→`done`(result=stats)/`failed`(error); logging failures never break the job; `None` client = no-op. `JOB_TYPES` maps CLI name→CHECK value.
+- **UI enforcement:** leads list now filters `suppressed=false` (alongside `is_archived=false`); detail page shows a red "Undertrykt — må ikke kontaktes" banner. `database.types.ts` updated by hand for the 3 new columns (regen with `supabase gen types` after `db push`).
+- **Compliance docs** (`docs/compliance/`): `LIA.md` (Art. 6(1)(f) purpose/necessity/balancing + safeguards table mapping each rule to the code that enforces it), `privacy-notice.md` (public Art. 14, Danish + English), `first-contact-script.md` (verbal Art. 14 at first call — source = CVR), `README.md` (index + go-live checklist).
+- **Deploy** (`docs/DEPLOY.md`): three-piece topology (Vercel/Supabase/Fly), **env-var matrix**, step-by-step web+worker deploy, the one-city E2E sequence, scheduling, and a `jobs`-backed observability/runbook + failure table. Artifacts: `services/worker/Dockerfile` (uv, Scrapling-browser block commented), `services/worker/fly.toml` (EU `arn`, sleep-infinity box + `/data` volume), `apps/web/vercel.json`. `ROBINSON_LIST_PATH` added to both `.env.example`s + `config.py`.
+- **Still blocked (live host):** migration apply, deploy, Robinson file, real-creds E2E, epic closing — see "▶ Next task".
 
 ### Built so far (M1–M6 on `main`)
 
@@ -130,8 +140,9 @@ uv run leadmachine hello               # smoke test
 - **M4 scoring & qualification gate — code complete (mock-tested), not yet closed** ([#5]). Pure computation; no live run needed. Close once a live worker pass has populated real signals to score.
 - **M5 leads dashboard — core code complete (builds green), not yet closed** ([#6]). List + detail + pipeline done; search-builder UI + assignment/archive deferred. Close after live verification against real data.
 - **M6 AI Danish sales angles — core code complete (mock-tested), not yet closed** ([#7]). Worker + read-only UI done; needs `ANTHROPIC_API_KEY` for a live run. Close after a live pass.
+- **M7 compliance/deploy/ship — code + docs complete (Session 6), not yet closed** ([#8]). Robinson screening + LIA/Art. 14 notices + `jobs` run-log + deploy artifacts/runbook all built & green. Remaining: apply migration, deploy, provision Robinson list, live E2E, then close M1–M7 epics.
 - **Open epics:** M1 [#2], M2 [#3], M3 [#4], M4 [#5], M5 [#6], M6 [#7], M7 [#8], V2 [#9].
-- **Open work issues:** none (M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
+- **Open work issues:** none (remaining M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
 
 ## Schema cheat-sheet (`supabase/migrations/0001_init.sql`)
 
@@ -182,3 +193,12 @@ Built **M4** (`scoring/`, #5) — the last worker milestone — on branch `claud
 - **Prompt:** factual Danish brief from the lead's signals + a phone-first system prompt (cold-call opener, never email). Grounds "why now" in `lead_scores.breakdown` and the hook in the website weaknesses.
 - **Live blocker only:** the real Claude call needs `ANTHROPIC_API_KEY` + outbound to `api.anthropic.com` (sandbox-blocked) — code path is API-shape-verified.
 - **Stopped at:** M6 committed on `claude/exciting-tesla-o21we4` + pushed to `main`. **Next = M7 compliance/deploy/ship (#8)** — see "▶ Next task" at top.
+
+### Session 6 — 2026-06-22  (M7 — compliance, observability, deploy artifacts)
+Built the in-sandbox half of M7 on `claude/resume-point-branch-check-r90jni`: the **feature code + ops docs**, leaving only the live-host steps (deploy, Robinson file, real-creds E2E). **+20 tests → 165 green, ruff clean; web lint + build green.**
+- **Robinson screening** (`compliance/robinson.py` + `screen.py`) — sole-trader-only opt-out gate behind a pluggable file source (`ROBINSON_LIST_PATH`); conservative name+postal match; CLI `screen` warns if the list is empty. Migration `0002_compliance.sql` (suppressed/suppression_reason/robinson_screened_at + `'robinson'` job type).
+- **Observability** (`jobs.py` `JobRun`) — wraps all six CLI commands → `jobs` run-log; resilient to logging failures.
+- **UI** — list excludes `suppressed`; detail shows a "må ikke kontaktes" banner; `database.types.ts` hand-updated.
+- **Docs** — `docs/compliance/` (LIA, Art. 14 public notice + first-contact script, README+checklist) and `docs/DEPLOY.md` (env matrix, Vercel+Fly steps, E2E sequence, runbook). Artifacts: worker `Dockerfile`, `fly.toml`, web `vercel.json`.
+- **Decision/scope:** kept V1 phone-first (no email channel); represented compliance suppression as explicit `leads.suppressed` columns (not reusing `is_archived`) for auditability; Robinson data is licensed → never committed, loaded at runtime.
+- **Stopped at:** M7 code+docs committed + pushed on `claude/resume-point-branch-check-r90jni`. **Next = the live-host finish of M7** (deploy + E2E + close epics) — see "▶ Next task" at top. NOT yet merged to `main` (merge when M7 ships / epics close).
