@@ -1,6 +1,7 @@
 import httpx
 
-from leadmachine.cvr.client import EsCvrClient, _is_retryable, _scroll_endpoint
+from leadmachine._http import is_retryable
+from leadmachine.cvr.client import EsCvrClient, _scroll_endpoint
 
 from .conftest import make_scroll_transport
 
@@ -13,10 +14,10 @@ def test_scroll_endpoint_is_index_less() -> None:
 
 def test_is_retryable_predicate() -> None:
     req = httpx.Request("POST", URL)
-    assert _is_retryable(httpx.ConnectError("boom")) is True
-    assert _is_retryable(httpx.HTTPStatusError("", request=req, response=httpx.Response(503, request=req))) is True
-    assert _is_retryable(httpx.HTTPStatusError("", request=req, response=httpx.Response(404, request=req))) is False
-    assert _is_retryable(ValueError("nope")) is False
+    assert is_retryable(httpx.ConnectError("boom")) is True
+    assert is_retryable(httpx.HTTPStatusError("", request=req, response=httpx.Response(503, request=req))) is True
+    assert is_retryable(httpx.HTTPStatusError("", request=req, response=httpx.Response(404, request=req))) is False
+    assert is_retryable(ValueError("nope")) is False
 
 
 def test_search_scrolls_all_pages(sources) -> None:

@@ -1,0 +1,41 @@
+{
+  "Vrvirksomhed": {
+    "cvrNummer": 12345678,
+    "deltagerRelation": [
+      {
+        "deltager": {
+          "enhedstype": "PERSON",
+          "navne": [{"navn": "Jens Hansen", "periode": {"gyldigFra": "2018-01-15", "gyldigTil": null}}]
+        },
+        "organisationer": [
+          {
+            "hovedtype": "LEDELSESORGAN",
+            "organisationsNavn": [{"navn": "Direktion", "periode": {"gyldigFra": "2018-01-15", "gyldigTil": null}}],
+            "medlemsData": [
+              {"attributter": [
+                {"type": "FUNKTION", "vaerdier": [{"vaerdi": "adm. dir.", "periode": {"gyldigFra": "2018-01-15", "gyldigTil": null}}]}
+              ]}
+            ]
+          }
+        ]
+      },
+      {
+        "deltager": {
+          "enhedstype": "PERSON",
+          "navne": [{"navn": "Mette Nielsen", "periode": {"gyldigFra": "2015-01-01", "gyldigTil": null}}]
+        },
+        "organisationer": [
+          {
+            "hovedtype": "LEDELSESORGAN",
+            "organisationsNavn": [{"navn": "Bestyrelse", "periode": {"gyldigFra": "2015-01-01", "gyldigTil": "2020-01-01"}}],
+            "medlemsData": [
+              {"attributter": [
+                {"type": "FUNKTION", "vaerdier": [{"vaerdi": "formand", "periode": {"gyldigFra": "2015-01-01", "gyldigTil": "2020-01-01"}}]}
+              ]}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

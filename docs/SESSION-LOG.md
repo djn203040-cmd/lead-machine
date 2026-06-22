@@ -7,8 +7,8 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0 COMPLETE** · **M1 (CVR discovery) core BUILT against mocks** (pending live CVR creds for an end-to-end run) · **next = M2 (website qualification)**.
-- **Branch:** `claude/compassionate-goldberg-x7nu36` · latest commit = the M1 commit below.
+- **State:** V1 · **M0 COMPLETE** · **M1 (CVR discovery) + M3 (financial enrichment) cores BUILT against mocks** (pending live run) · **next = M2 (website qualification, #18–#21)** → then M4 (scoring).
+- **Branch:** `claude/compassionate-goldberg-x7nu36` (also fast-forwarded to `main`) · latest commit = the M3 commit below.
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
 
 ### M1: CVR discovery ([#2](https://github.com/djn203040-cmd/lead-machine/issues/2)) — built (mock-tested)
@@ -18,6 +18,16 @@ All four work issues implemented under `services/worker/src/leadmachine/cvr/`, 3
 - [#16](https://github.com/djn203040-cmd/lead-machine/issues/16) **Query builder** — `cvr/query.py` `SearchParameters` + `build_es_query()`: branchekode terms, postnr (discrete + ranges) / kommune OR-clause, employee band (matches monthly/quarterly/yearly cadence), status (defaults to active; explicit `[]` disables).
 - [#17](https://github.com/djn203040-cmd/lead-machine/issues/17) **Discovery job** — `cvr/discovery.py` `run_discovery()` + `SupabaseLeadWriter`: upsert `leads` on_conflict `cvr_number` (idempotent dedup), raw → `lead_enrichment.cvr`, suppress `reklamebeskyttet` + non-active status. `cvr/mapper.py` flattens `Vrvirksomhed` (current/non-secret contacts, latest employment, sole-trader detection). CLI: `leadmachine discover`.
 - **To run live:** get CVR creds (below) → `services/worker/.env` (`CVR_ES_USER`/`CVR_ES_PASSWORD`) → `uv run leadmachine discover -b 960210 -p 2200`.
+
+### M3: Firmographic & financial enrichment ([#4](https://github.com/djn203040-cmd/lead-machine/issues/4)) — core built (mock-tested)
+New package `services/worker/src/leadmachine/financial/`; +22 tests (54 total), ruff clean. Scope confirmed with user = **financials core + CVR owners/management; website contact-scrape deferred to M2.**
+- **XBRL financials** — `client.py` `FinancialClient` reads Virk `offentliggoerelser` (**free, no auth**) → newest annual report w/ XBRL; `xbrl.py` `parse_xbrl()` extracts primary-period `fsa:GrossProfitLoss/ProfitLoss/Equity/Assets/Revenue/EmployeeBenefitsExpense/AverageNumberOfEmployees` (stdlib ElementTree, ignores prior-year + dimensional contexts).
+- **Revenue estimation** — `estimate.py`: actual → gross-margin back-out → per-employee, with sector benchmarks (by catalog group, prefix fallback) + confidence. Never hard-gates.
+- **Decision-makers** — `cvr/mapper.py` `extract_management()` pulls current direktion/bestyrelse/owners from `deltagerRelation` → `lead_enrichment.contact` (best-effort, CVR-only).
+- **Job** — `enrich.py` `run_financial_enrichment()` + `SupabaseFinancialWriter` → `lead_enrichment.financial` + `.contact`. CLI: `leadmachine enrich-financial`.
+- **Shared** — extracted `leadmachine/_http.py` (retrying httpx JSON/bytes + UA header); CVR client now uses it.
+- **Live note:** sandbox blocks outbound to `distribution.virk.dk` (403); run `enrich-financial` from the worker host after a `discover` populates leads.
+- **Deferred (not acceptance-gating):** website contact-scrape → M2; per-location P-units → when multi-location targeting matters.
 
 ### To run the project locally
 ```bash
@@ -65,8 +75,9 @@ uv run leadmachine hello               # smoke test
 
 - **M0 Foundation — ✅ closed** ([#1](https://github.com/djn203040-cmd/lead-machine/issues/1): #10, #11, #12, #13).
 - **M1 CVR discovery — code complete (mock-tested), not yet closed** ([#2]: #14–#17). Close after a live CVR-creds run confirms acceptance.
+- **M3 financial enrichment — core code complete (mock-tested), not yet closed** ([#4]). Financials + revenue estimate + CVR contacts done; website contact-scrape deferred to M2. Close after a live run.
 - **Open epics:** M1 [#2], M2 [#3], M3 [#4], M4 [#5], M5 [#6], M6 [#7], M7 [#8], V2 [#9].
-- **Open work issues:** M2 #18–#21. (M3–M7 + V2 tasks are checklists inside their epics — expand into issues when reached.)
+- **Open work issues:** M2 #18–#21. (M4–M7 + V2 tasks are checklists inside their epics — expand into issues when reached.)
 
 ## Schema cheat-sheet (`supabase/migrations/0001_init.sql`)
 
@@ -88,3 +99,10 @@ uv run leadmachine hello               # smoke test
 - **Tests:** added `tests/conftest.py` (fakes + `httpx.MockTransport` scroll emulator + `tests/fixtures/cvr_companies.json`) and 5 test modules. **32 passed, ruff clean.** Verified scroll pagination, suppression (reklame + bankrupt), CVR# dedup, contact/employment mapping, query-builder clauses.
 - **Scope call:** production-unit fetching (mentioned in #14 acceptance) deferred to M3 enrichment, where per-location P-numbers are actually consumed; the client supports it by pointing at the produktionsenhed index.
 - **Next:** obtain CVR creds → live `discover` run to close #14–#17; then M2 (website qualification, #18–#21).
+
+### Session 3 — 2026-06-22
+- **Pushed M1 to `main`** (fast-forward `3b2e0ab..69d0f55`).
+- **Built M3 (financial enrichment) core** against mocks: new `financial/` package (XBRL fetch+parse, sector revenue estimation, enrichment job + Supabase writer) + `cvr/mapper.extract_management()` for best-effort CVR decision-makers. Extracted shared `_http.py`. CLI `enrich-financial`. **+22 tests → 54 total, ruff clean.**
+- **Scope confirmed w/ user:** financials core + CVR owners; **website contact-scrape deferred to M2** (needs Scrapling website-fetch infra). P-units deferred (not acceptance-gating).
+- **Live note:** outbound to `distribution.virk.dk` is 403 in this sandbox; `offentliggoerelser` is free/unauth, so a worker-host run needs no creds. CVR discovery still needs the ES creds.
+- **Next:** M2 (website qualification, #18–#21) to complete qualification signals, then M4 (scoring) which consumes M2 `website_need` + M3 financials.

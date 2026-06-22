@@ -1,0 +1,32 @@
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "rep-2022",
+        "_source": {
+          "cvrNummer": 12345678,
+          "offentliggoerelsestype": "regnskab",
+          "offentliggoerelsesTidspunkt": "2023-05-20T10:00:00.000+02:00",
+          "regnskab": {"regnskabsperiode": {"startDato": "2022-01-01", "slutDato": "2022-12-31"}},
+          "dokumenter": [
+            {"dokumentType": "AARSRAPPORT", "dokumentMimeType": "application/xml", "dokumentUrl": "https://regnskaber.virk.dk/rep-2022.xml"},
+            {"dokumentType": "AARSRAPPORT", "dokumentMimeType": "application/pdf", "dokumentUrl": "https://regnskaber.virk.dk/rep-2022.pdf"}
+          ]
+        }
+      },
+      {
+        "_id": "rep-2023",
+        "_source": {
+          "cvrNummer": 12345678,
+          "offentliggoerelsestype": "regnskab",
+          "offentliggoerelsesTidspunkt": "2024-05-15T10:00:00.000+02:00",
+          "regnskab": {"regnskabsperiode": {"startDato": "2023-01-01", "slutDato": "2023-12-31"}},
+          "dokumenter": [
+            {"dokumentType": "AARSRAPPORT", "dokumentMimeType": "application/xml", "dokumentUrl": "https://regnskaber.virk.dk/rep-2023.xml"},
+            {"dokumentType": "AARSRAPPORT", "dokumentMimeType": "application/pdf", "dokumentUrl": "https://regnskaber.virk.dk/rep-2023.pdf"}
+          ]
+        }
+      }
+    ]
+  }
+}

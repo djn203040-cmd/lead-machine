@@ -86,5 +86,51 @@ def discover(
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
 
+@app.command(name="enrich-financial")
+def enrich_financial(
+    limit: int = typer.Option(200, help="Max leads to enrich in this run."),
+) -> None:
+    """Attach XBRL financials + revenue estimate + CVR contacts to leads."""
+    from .config import settings
+    from .db import get_client
+    from .financial import (
+        FinancialClient,
+        SupabaseFinancialWriter,
+        run_financial_enrichment,
+    )
+    from .financial.models import LeadToEnrich
+
+    db = get_client()
+    res = (
+        db.table("leads")
+        .select("id,cvr_number,branchekode,employees_exact,employees_band,lead_enrichment(cvr)")
+        .not_.is_("cvr_number", "null")
+        .limit(limit)
+        .execute()
+    )
+
+    leads = []
+    for row in res.data or []:
+        enr = row.get("lead_enrichment")
+        if isinstance(enr, list):
+            enr = enr[0] if enr else None
+        leads.append(
+            LeadToEnrich(
+                lead_id=row["id"],
+                cvr_number=row["cvr_number"],
+                branchekode=row.get("branchekode"),
+                employees_exact=row.get("employees_exact"),
+                employees_band=row.get("employees_band"),
+                raw_cvr=(enr or {}).get("cvr") if enr else None,
+            )
+        )
+
+    writer = SupabaseFinancialWriter(db)
+    with FinancialClient.from_settings(settings) as client:
+        stats = run_financial_enrichment(leads, client, writer)
+
+    typer.echo(json.dumps(stats.as_dict(), indent=2))
+
+
 if __name__ == "__main__":
     app()

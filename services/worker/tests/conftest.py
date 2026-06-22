@@ -118,3 +118,49 @@ def make_scroll_transport(
         return httpx.Response(200, json=body)
 
     return httpx.MockTransport(handler), captured
+
+
+# --- financial enrichment (M3) ---------------------------------------------
+def load_xbrl() -> bytes:
+    return (FIXTURES / "xbrl_sample.xml").read_bytes()
+
+
+@pytest.fixture
+def xbrl_bytes() -> bytes:
+    return load_xbrl()
+
+
+@pytest.fixture
+def offentliggoerelser_response() -> dict[str, Any]:
+    return json.loads((FIXTURES / "offentliggoerelser_sample.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def deltager_record() -> dict[str, Any]:
+    return json.loads((FIXTURES / "cvr_deltager.json").read_text(encoding="utf-8"))
+
+
+class MockFinancialClient:
+    """In-memory FinancialClient returning a canned report + XBRL bytes."""
+
+    def __init__(self, report: Any, xbrl: bytes | None) -> None:
+        self.report = report
+        self.xbrl = xbrl
+        self.requested: list[str] = []
+
+    def fetch_latest_report(self, cvr_number: Any) -> Any:
+        self.requested.append(str(cvr_number))
+        return self.report
+
+    def download_xbrl(self, report: Any) -> bytes | None:
+        return self.xbrl
+
+
+class FakeFinancialWriter:
+    """Records financial/contact writes keyed by lead_id."""
+
+    def __init__(self) -> None:
+        self.writes: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+
+    def write(self, lead_id: str, financial: dict[str, Any], contact: dict[str, Any]) -> None:
+        self.writes[lead_id] = (financial, contact)

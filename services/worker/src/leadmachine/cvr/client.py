@@ -16,40 +16,14 @@ from typing import Any, Iterator
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
-from tenacity import (
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_exponential,
-)
 
+from .._http import DEFAULT_HEADERS, request_json
 from .query import SearchParameters, build_es_query
 
 DEFAULT_PAGE_SIZE = 1000
 DEFAULT_SCROLL_TTL = "2m"
 
-
-def _is_retryable(exc: BaseException) -> bool:
-    """Retry transport errors and 5xx responses; never retry 4xx (auth/bad query)."""
-    if isinstance(exc, httpx.TransportError):
-        return True
-    if isinstance(exc, httpx.HTTPStatusError):
-        return exc.response.status_code >= 500
-    return False
-
-
-@retry(
-    reraise=True,
-    stop=stop_after_attempt(4),
-    wait=wait_exponential(multiplier=1, min=2, max=16),
-    retry=retry_if_exception(_is_retryable),
-)
-def _request_json(
-    client: httpx.Client, method: str, url: str, json_body: dict[str, Any] | None = None
-) -> dict[str, Any]:
-    resp = client.request(method, url, json=json_body)
-    resp.raise_for_status()
-    return resp.json()
+__all__ = ["EsCvrClient", "DEFAULT_PAGE_SIZE", "DEFAULT_SCROLL_TTL"]
 
 
 def _scroll_endpoint(search_url: str) -> str:
@@ -79,7 +53,7 @@ class EsCvrClient:
         self._client = http_client or httpx.Client(
             auth=(user, password) if user or password else None,
             timeout=httpx.Timeout(60.0, connect=10.0),
-            headers={"Content-Type": "application/json"},
+            headers=DEFAULT_HEADERS,
         )
 
     @classmethod
@@ -110,7 +84,7 @@ class EsCvrClient:
     # -- internals -----------------------------------------------------------
     def _scroll(self, query: dict[str, Any]) -> Iterator[dict[str, Any]]:
         body = {"size": self.page_size, "query": query}
-        data = _request_json(
+        data = request_json(
             self._client, "POST", f"{self.search_url}?scroll={self.scroll_ttl}", body
         )
         scroll_id = data.get("_scroll_id")
@@ -124,7 +98,7 @@ class EsCvrClient:
                     yield source.get("Vrvirksomhed", source)
                 if not scroll_id:
                     break
-                data = _request_json(
+                data = request_json(
                     self._client,
                     "POST",
                     self.scroll_url,

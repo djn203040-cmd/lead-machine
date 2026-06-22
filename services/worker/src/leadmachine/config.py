@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     cvr_es_user: str = ""
     cvr_es_password: str = ""
 
+    # Annual-report XBRL channel (free, unauthenticated)
+    cvr_offentliggoerelser_url: str = "http://distribution.virk.dk/offentliggoerelser/_search"
+
     # Enrichment / AI
     pagespeed_api_key: str = ""
     anthropic_api_key: str = ""

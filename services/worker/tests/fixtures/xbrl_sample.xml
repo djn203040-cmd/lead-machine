@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+            xmlns:fsa="http://xbrl.dcca.dk/fsa"
+            xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+            xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+
+  <xbrli:context id="D-2023">
+    <xbrli:entity><xbrli:identifier scheme="http://www.dcca.dk/cvr">12345678</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:startDate>2023-01-01</xbrli:startDate><xbrli:endDate>2023-12-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="D-2022">
+    <xbrli:entity><xbrli:identifier scheme="http://www.dcca.dk/cvr">12345678</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:startDate>2022-01-01</xbrli:startDate><xbrli:endDate>2022-12-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="I-2023">
+    <xbrli:entity><xbrli:identifier scheme="http://www.dcca.dk/cvr">12345678</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:instant>2023-12-31</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="I-2022">
+    <xbrli:entity><xbrli:identifier scheme="http://www.dcca.dk/cvr">12345678</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:instant>2022-12-31</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  <xbrli:context id="D-2023-SEG">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://www.dcca.dk/cvr">12345678</xbrli:identifier>
+      <xbrli:segment>
+        <xbrldi:explicitMember dimension="fsa:SegmentDim">fsa:SomeSegment</xbrldi:explicitMember>
+      </xbrli:segment>
+    </xbrli:entity>
+    <xbrli:period><xbrli:startDate>2023-01-01</xbrli:startDate><xbrli:endDate>2023-12-31</xbrli:endDate></xbrli:period>
+  </xbrli:context>
+
+  <xbrli:unit id="DKK"><xbrli:measure>iso4217:DKK</xbrli:measure></xbrli:unit>
+  <xbrli:unit id="pure"><xbrli:measure>xbrli:pure</xbrli:measure></xbrli:unit>
+
+  <fsa:GrossProfitLoss contextRef="D-2023" unitRef="DKK" decimals="0">1200000</fsa:GrossProfitLoss>
+  <fsa:GrossProfitLoss contextRef="D-2022" unitRef="DKK" decimals="0">1000000</fsa:GrossProfitLoss>
+  <fsa:ProfitLoss contextRef="D-2023" unitRef="DKK" decimals="0">350000</fsa:ProfitLoss>
+  <fsa:ProfitLoss contextRef="D-2022" unitRef="DKK" decimals="0">250000</fsa:ProfitLoss>
+  <fsa:Equity contextRef="I-2023" unitRef="DKK" decimals="0">900000</fsa:Equity>
+  <fsa:Equity contextRef="I-2022" unitRef="DKK" decimals="0">600000</fsa:Equity>
+  <fsa:Assets contextRef="I-2023" unitRef="DKK" decimals="0">1500000</fsa:Assets>
+  <fsa:EmployeeBenefitsExpense contextRef="D-2023" unitRef="DKK" decimals="0">800000</fsa:EmployeeBenefitsExpense>
+  <fsa:AverageNumberOfEmployees contextRef="D-2023" unitRef="pure" decimals="0">4</fsa:AverageNumberOfEmployees>
+
+  <!-- Revenue only appears on a dimensional (segment) context -> must be ignored -->
+  <fsa:Revenue contextRef="D-2023-SEG" unitRef="DKK" decimals="0">9999999</fsa:Revenue>
+
+</xbrli:xbrl>

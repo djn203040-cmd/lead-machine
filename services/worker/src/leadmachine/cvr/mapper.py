@@ -217,3 +217,78 @@ def map_company(record: dict[str, Any]) -> MappedLead:
         reklamebeskyttet=bool(v.get("reklamebeskyttet", False)),
         is_sole_trader=form_code in SOLE_TRADER_FORM_CODES,
     )
+
+
+# Management/ownership organisations we treat as decision-makers.
+_MGMT_ORG_TYPES = {"LEDELSESORGAN"}
+_MGMT_ORG_NAMES = {
+    "DIREKTION",
+    "BESTYRELSE",
+    "REELLE EJERE",
+    "EJERREGISTER",
+    "FULDT ANSVARLIG DELTAGERE",
+}
+
+
+def _latest_named(items: list[dict[str, Any]] | None) -> str | None:
+    """Current (or latest) ``navn`` from a period-stamped name list."""
+    if not items:
+        return None
+    current = [i for i in items if _is_current(i)]
+    chosen = current[-1] if current else items[-1]
+    return chosen.get("navn")
+
+
+def _org_current_function(org: dict[str, Any]) -> tuple[bool, str | None]:
+    """Whether a person currently holds this organisation role, and the title."""
+    is_current = False
+    function: str | None = None
+    medlemsdata = org.get("medlemsData") or []
+    for md in medlemsdata:
+        for attr in md.get("attributter") or []:
+            for val in attr.get("vaerdier") or []:
+                if _is_current(val):
+                    is_current = True
+                    if attr.get("type") == "FUNKTION" and not function:
+                        function = val.get("vaerdi")
+    if not medlemsdata:
+        # No membership detail — fall back to the org-name period.
+        for name in org.get("organisationsNavn") or []:
+            if _is_current(name):
+                is_current = True
+    return is_current, function
+
+
+def extract_management(record: dict[str, Any]) -> list[dict[str, str]]:
+    """Best-effort current decision-makers (direktion/bestyrelse/owners) from CVR.
+
+    Returns ``[{"name": ..., "role": ...}]``; empty when no current management
+    relations are present. Best-effort — CVR ``deltagerRelation`` is sparse and
+    varied, so this favours precision (only clearly-current memberships)."""
+    v = _unwrap(record)
+    out: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for rel in v.get("deltagerRelation") or []:
+        name = _latest_named((rel.get("deltager") or {}).get("navne"))
+        if not name:
+            continue
+        for org in rel.get("organisationer") or []:
+            org_name = _latest_named(org.get("organisationsNavn"))
+            hovedtype = org.get("hovedtype")
+            is_mgmt = hovedtype in _MGMT_ORG_TYPES or (
+                org_name is not None and org_name.upper() in _MGMT_ORG_NAMES
+            )
+            if not is_mgmt:
+                continue
+            is_current, function = _org_current_function(org)
+            if not is_current:
+                continue
+            role = function or org_name or hovedtype or "ledelse"
+            key = (name, role)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"name": name, "role": role})
+
+    return out
