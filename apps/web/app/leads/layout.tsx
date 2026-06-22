@@ -16,6 +16,12 @@ export default async function LeadsLayout({ children }: { children: React.ReactN
             Lead Machine
           </Link>
           <div className="flex items-center gap-4">
+            <Link
+              href="/leads/new"
+              className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              + Find virksomheder
+            </Link>
             <span className="hidden text-sm text-gray-500 sm:inline">{user?.email}</span>
             <SignOutButton />
           </div>
