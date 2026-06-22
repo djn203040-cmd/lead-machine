@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 import typer
 
@@ -217,6 +218,64 @@ def score(
         )
 
     stats = run_scoring(leads, SupabaseScoreWriter(db), weights=weights)
+    typer.echo(json.dumps(stats.as_dict(), indent=2))
+
+
+@app.command()
+def angles(
+    limit: int = typer.Option(100, help="Max leads to generate angles for in this run."),
+    only_missing: bool = typer.Option(
+        True, help="Skip leads that already have a generated angle."
+    ),
+) -> None:
+    """Generate Danish phone-call sales angles with Claude (requires ANTHROPIC_API_KEY)."""
+    from .angles import ClaudeAnglesClient, SupabaseAngleWriter, run_angles
+    from .angles.models import LeadForAngle
+    from .config import settings
+    from .db import get_client
+    from .financial.estimate import band_midpoint
+
+    db = get_client()
+    res = (
+        db.table("leads")
+        .select(
+            "id,company_name,city,branche_text,website_need,employees_band,employees_exact,"
+            "score,lead_enrichment(website,social,financial),lead_scores(breakdown),"
+            "lead_angles(lead_id)"
+        )
+        .neq("website_need", "unknown")
+        .limit(limit)
+        .execute()
+    )
+
+    def _one(value: Any) -> Any:
+        return (value[0] if value else None) if isinstance(value, list) else value
+
+    leads = []
+    for row in res.data or []:
+        if only_missing and _one(row.get("lead_angles")):
+            continue
+        enr = _one(row.get("lead_enrichment")) or {}
+        scores = _one(row.get("lead_scores")) or {}
+        leads.append(
+            LeadForAngle(
+                lead_id=row["id"],
+                company_name=row["company_name"],
+                city=row.get("city"),
+                branche_text=row.get("branche_text"),
+                website_need=row.get("website_need") or "unknown",
+                employees=row.get("employees_exact") or band_midpoint(row.get("employees_band")),
+                score=row.get("score"),
+                website=enr.get("website") or {},
+                financial=enr.get("financial") or {},
+                social=enr.get("social") or {},
+                score_breakdown=scores.get("breakdown") or {},
+            )
+        )
+
+    with ClaudeAnglesClient.from_settings(settings) as client:
+        stats = run_angles(leads, client, SupabaseAngleWriter(db))
+
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
 

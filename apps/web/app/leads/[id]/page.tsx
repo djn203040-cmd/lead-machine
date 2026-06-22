@@ -50,6 +50,21 @@ function yesNo(value: boolean | null | undefined): string {
   return value ? "Ja" : "Nej";
 }
 
+const COMPETITOR_ANGLE_DA: Record<string, string> = {
+  fomo: "FOMO — konkurrenter er mere synlige",
+  first_mover: "First mover — vær først/bedst lokalt",
+};
+
+function AnglePart({ label, text }: { label: string; text: string | null }) {
+  if (!text) return null;
+  return (
+    <div className="mt-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">{label}</p>
+      <p className="text-sm whitespace-pre-wrap text-gray-800">{text}</p>
+    </div>
+  );
+}
+
 export default async function LeadDetailPage({
   params,
 }: {
@@ -58,10 +73,11 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [leadRes, enrichRes, scoreRes, notesRes, followupsRes] = await Promise.all([
+  const [leadRes, enrichRes, scoreRes, angleRes, notesRes, followupsRes] = await Promise.all([
     supabase.from("leads").select("*").eq("id", id).maybeSingle(),
     supabase.from("lead_enrichment").select("*").eq("lead_id", id).maybeSingle(),
     supabase.from("lead_scores").select("*").eq("lead_id", id).maybeSingle(),
+    supabase.from("lead_angles").select("*").eq("lead_id", id).maybeSingle(),
     supabase
       .from("lead_notes")
       .select("id, body, created_at")
@@ -81,6 +97,7 @@ export default async function LeadDetailPage({
 
   const enrichment = enrichRes.data as Tables<"lead_enrichment"> | null;
   const scoreRow = scoreRes.data as Tables<"lead_scores"> | null;
+  const angle = angleRes.data as Tables<"lead_angles"> | null;
   const breakdown = parseBreakdown(scoreRow?.breakdown);
   const notes = (notesRes.data ?? []) as NoteView[];
   const followups = (followupsRes.data ?? []) as FollowupView[];
@@ -109,6 +126,27 @@ export default async function LeadDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {angle && (
+            <section className="rounded border border-emerald-200 bg-emerald-50 p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-emerald-900">Salgsvinkel</h2>
+                <span className="text-xs text-emerald-700">
+                  {COMPETITOR_ANGLE_DA[angle.competitor_angle_type ?? ""] ?? ""}
+                  {angle.competitor_name ? ` · ${angle.competitor_name}` : ""}
+                  {angle.generated_at ? ` · ${formatDate(angle.generated_at)}` : ""}
+                </span>
+              </div>
+              {angle.opening_line_da && (
+                <blockquote className="border-l-2 border-emerald-400 pl-3 text-base font-medium text-gray-900">
+                  «{angle.opening_line_da}»
+                </blockquote>
+              )}
+              <AnglePart label="Resumé" text={angle.summary_da} />
+              <AnglePart label="Vinkel" text={angle.angle_da} />
+              <AnglePart label="Svagheder" text={angle.weaknesses_da} />
+            </section>
+          )}
+
           <Section title="Virksomhedsdata">
             <dl>
               <Field label="CVR-nummer" value={lead.cvr_number} />

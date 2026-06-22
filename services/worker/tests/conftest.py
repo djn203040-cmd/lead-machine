@@ -234,3 +234,33 @@ class FakeScoreWriter:
 
     def write(self, lead_id: str, total: int, breakdown: dict[str, Any]) -> None:
         self.writes[lead_id] = (total, breakdown)
+
+
+# --- angles (M6) -----------------------------------------------------------
+class MockAnglesClient:
+    """In-memory angles client returning a canned payload; records prompts."""
+
+    def __init__(self, payload: dict[str, Any] | None = None) -> None:
+        self.payload = payload or {
+            "summary_da": "Lokal frisør uden hjemmeside.",
+            "weaknesses_da": "Ingen hjemmeside; kun Facebook.",
+            "angle_da": "En enkel hjemmeside fanger lokale kunder, der søger på Google.",
+            "opening_line_da": "Hej, jeg så at I ikke har en hjemmeside endnu — har I overvejet en?",
+            "competitor_name": "",
+            "competitor_angle_type": "first_mover",
+        }
+        self.calls: list[tuple[str, str]] = []
+
+    def generate(self, system: str, user: str) -> dict[str, Any]:
+        self.calls.append((system, user))
+        return self.payload
+
+
+class FakeAngleWriter:
+    """Records angle writes keyed by lead_id."""
+
+    def __init__(self) -> None:
+        self.writes: dict[str, dict[str, Any]] = {}
+
+    def write(self, lead_id: str, angle: dict[str, Any]) -> None:
+        self.writes[lead_id] = angle
