@@ -170,5 +170,55 @@ def qualify(
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
 
+@app.command()
+def score(
+    limit: int = typer.Option(500, help="Max leads to score in this run."),
+    only_qualified: bool = typer.Option(
+        True, help="Only leads whose website_need has been determined (skip 'unknown')."
+    ),
+) -> None:
+    """Compute the 0–100 website-selling score + ranked breakdown for each lead."""
+    from .db import get_client
+    from .scoring import LeadToScore, SupabaseScoreWriter, Weights, run_scoring
+
+    db = get_client()
+
+    criteria = db.table("scoring_criteria").select("key,weight,config,is_active").execute()
+    weights = Weights.from_criteria(criteria.data or [])
+
+    query = db.table("leads").select(
+        "id,website_need,branchekode,employees_band,employees_exact,founded_at,"
+        "cvr_status,reklamebeskyttet,lead_enrichment(website,social,financial)"
+    )
+    if only_qualified:
+        query = query.neq("website_need", "unknown")
+    res = query.limit(limit).execute()
+
+    leads = []
+    for row in res.data or []:
+        enr = row.get("lead_enrichment")
+        if isinstance(enr, list):
+            enr = enr[0] if enr else None
+        enr = enr or {}
+        leads.append(
+            LeadToScore(
+                lead_id=row["id"],
+                website_need=row.get("website_need") or "unknown",
+                branchekode=row.get("branchekode"),
+                employees_band=row.get("employees_band"),
+                employees_exact=row.get("employees_exact"),
+                founded_at=row.get("founded_at"),
+                cvr_status=row.get("cvr_status"),
+                reklamebeskyttet=bool(row.get("reklamebeskyttet")),
+                website=enr.get("website") or {},
+                social=enr.get("social") or {},
+                financial=enr.get("financial") or {},
+            )
+        )
+
+    stats = run_scoring(leads, SupabaseScoreWriter(db), weights=weights)
+    typer.echo(json.dumps(stats.as_dict(), indent=2))
+
+
 if __name__ == "__main__":
     app()

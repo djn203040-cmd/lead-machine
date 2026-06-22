@@ -223,3 +223,14 @@ class FakeWebsiteWriter:
         self, lead_id: str, website_need: str, evidence: dict[str, Any], social: dict[str, Any]
     ) -> None:
         self.writes[lead_id] = (website_need, evidence, social)
+
+
+# --- scoring (M4) ----------------------------------------------------------
+class FakeScoreWriter:
+    """Records score writes keyed by lead_id."""
+
+    def __init__(self) -> None:
+        self.writes: dict[str, tuple[int, dict[str, Any]]] = {}
+
+    def write(self, lead_id: str, total: int, breakdown: dict[str, Any]) -> None:
+        self.writes[lead_id] = (total, breakdown)
