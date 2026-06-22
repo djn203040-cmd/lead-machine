@@ -7,21 +7,20 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) + M4 (scoring & qualification gate) cores BUILT against mocks** (M1–M3 pending a live run; M4 needs no live run) · **next = M5 (leads dashboard, #6)**.
-- **Branch:** working branch `claude/exciting-tesla-o21we4` holds M1–M4 (+ this log) on top of `main`; **`main` is still foundation-only (`3b2e0ab`)** — the milestone work has not been merged. Working tree clean.
+- **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) + M4 (scoring) + M5 (leads dashboard) cores BUILT** (M1–M3 pending a live run; M4 needs none; M5 builds green — live verify needs real data) · **next = M6 (Claude Danish sales angles, #7)**.
+- **Branch:** working branch `claude/exciting-tesla-o21we4`. **`main` now holds M1–M4** (fast-forwarded to `5c27e35`); the M5 dashboard sits on the working branch on top of that. Working tree clean.
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
 
-### ▶ Next task — M5: leads dashboard ([#6](https://github.com/djn203040-cmd/lead-machine/issues/6))
-Surface the scored pipeline in `apps/web` (Next.js 15 + Supabase, already scaffolded). This is the first big **web** milestone — the worker side (discover → qualify → enrich → score) is now code-complete. Read `apps/web/lib/database.types.ts` (regenerate if stale) before building queries.
+### ▶ Next task — M6: AI Danish sales angles ([#7](https://github.com/djn203040-cmd/lead-machine/issues/7))
+Generate a per-lead Danish pitch with Claude and write it to `lead_angles` (table already exists; the M5 lead-detail page has a spot to surface it). This is a **worker** milestone (`services/worker`) plus a small read-only UI panel.
 
-- **Search-with-filters UI:** branchekode (grouped — the worker's `leadmachine categories` JSON / `cvr.branchekoder.grouped()` feeds the filter), postnr/kommune, employee band, `website_need`, score range, `pipeline_status`. A search creates/edits a `searches` row (its `parameters` jsonb is what `leadmachine discover --search-id` consumes).
-- **Leads table:** ranked by `leads.score desc` (index already exists). Columns: company, `website_need` badge, score, employees, city, phone, pipeline status. Server-side pagination/sort via Supabase.
-- **Lead detail:** show the explainable `lead_scores.breakdown` (per-factor points/max/detail — the shape `score_lead().as_dict()` writes), CVR firmographics, `lead_enrichment` (website evidence, financials + revenue estimate, decision-makers), phones. Leave space for the M6 Danish angle.
-- **Pipeline:** edit `pipeline_status` (new→enriched→qualified→contacted→meeting_booked→won/lost/discarded), `lead_notes`, `lead_followups`, assignment. Phone-first — no email-send UI in V1 (Markedsføringsloven §10).
-- **Auth/RLS:** all tables are `authenticated full access`; the app already wires Supabase auth (`/login`). The Python worker uses the service-role key and bypasses RLS — the dashboard must use the anon/publishable key + a logged-in session.
-- **Then:** M6 Claude Danish angles (#7) writes `lead_angles`; M7 compliance/deploy (#8); finally close M1–M4 epics after a live worker pass.
+- **Worker:** new `services/worker/src/leadmachine/angles/` — build a typed prompt from the lead's signals (`leads` firmographics + `lead_enrichment.website/financial/social` + `lead_scores.breakdown` "why it's a good lead"), call Claude (latest model; key via `ANTHROPIC_API_KEY` — already in `.env.example`/blockers table), parse to `lead_angles` columns: `summary_da`, `weaknesses_da`, `angle_da`, `opening_line_da`, `competitor_name`, `competitor_angle_type` (`fomo`/`first_mover`/`none`). Mirror the established shape: `models.py` + `generate.py` `run_angles()` + `SupabaseAngleWriter`, CLI `leadmachine angles`. **Mock the Claude client behind a Protocol** so it tests with no network/key (like the CVR/financial clients).
+- **Prompt:** Danish output, phone-first framing (a call opener, not an email). Use the score breakdown to ground the "why now" and the website weaknesses as the concrete hook. Keep it cheap (small max_tokens; one call per lead).
+- **UI:** add a read-only "Salgsvinkel" section to `/leads/[id]` (the detail page already leaves room) — summary, weaknesses, angle, opening line. Optionally a "generér" affordance later.
+- **Use the `claude-api` skill / `RESEARCH` doc for current model id + SDK usage; don't hardcode an old model.**
+- **Then:** M7 compliance/deploy (#8) — LIA/privacy/suppression, Vercel + worker host, observability; finally close the M1–M5 epics after a live pass. A **search-builder UI** (create `searches` rows to trigger new discovery) and lead **assignment/archive** were deferred from M5 — fold into M5 follow-up or M7.
 
-### Built so far (mock-tested; on the working branch, **not yet on `main`**)
+### Built so far (M1–M4 on `main`; M5 on the working branch)
 
 ### M1: CVR discovery ([#2](https://github.com/djn203040-cmd/lead-machine/issues/2)) — built (mock-tested)
 All four work issues implemented under `services/worker/src/leadmachine/cvr/`, 32 tests green, ruff clean:
@@ -62,6 +61,15 @@ New package `services/worker/src/leadmachine/scoring/`; +42 tests (133 total), r
 - **Hard gate** — `gate_reason()`: `reklamebeskyttet` or an explicitly-inactive `cvr_status` → total 0 (a *missing* status is not gated; it would zero valid leads). Already suppressed at discovery; gated here defensively.
 - **Tunable weights** — `Weights.from_criteria()` overlays the 11 seeded `scoring_criteria` rows: `is_active=false` disables a signal, `config.points` overrides its value (the coarse low/medium/high `weight` column is a human label, not a numeric override). So weights retune from the DB with no code change.
 - **`score.py`** — `score_lead()` → `ScoreBreakdown` (explainable per-factor `points`/`max`/`detail`, versioned for the UI); `run_scoring()` + `SupabaseScoreWriter` upserts `lead_scores` and mirrors the total onto `leads.score`. CLI: `leadmachine score` (loads `scoring_criteria`, scores qualified leads). Sanity check: a no-website local plumber (2–4 emp, FB page, founded ~3y) → **87/100**.
+
+### M5: Leads dashboard ([#6](https://github.com/djn203040-cmd/lead-machine/issues/6)) — core built (`apps/web`)
+First web milestone. Next.js 15 (App Router) + Supabase SSR; Danish UI; `pnpm --filter web lint` + `build` (type-check) green.
+- **List** (`app/leads/page.tsx`) — URL-driven filters (free-text company, branche **group**, `website_need`, `pipeline_status`, min score) + pagination, ranked `score desc`. Server component reads `searchParams`; `FilterBar` (client) pushes query updates.
+- **Detail** (`app/leads/[id]/page.tsx`) — firmographics; an **explainable score breakdown** (per-factor bars parsed from `lead_scores.breakdown`); website evidence; financials + revenue estimate; social; CVR decision-makers; a **phone-first** contact card with the §10 note (no cold-email UI).
+- **Pipeline** — server actions (`actions.ts`, `revalidatePath`): change `pipeline_status`, add/list `lead_notes`, add/list `lead_followups`. Client `PipelinePanel` with `useTransition`.
+- **Shared** (`apps/web/lib/`) — `branchekoder.ts` (group mirror of the worker catalog — keep in sync), `leadmeta.ts` (badges + da-DK formatters), `score-breakdown.ts` + `enrichment.ts` (typed views over the jsonb). `leads/layout.tsx` header + sign-out; `_components/Badge.tsx`.
+- **Toolchain note:** supabase-js 2.108's typed client infers select `data` and insert/update params as `never` with our generated types — the list query uses `.returns<>()`, the detail page asserts the `Tables<>` row types, and writes use `satisfies <T> as never` (payload shape stays checked). If this gets annoying, pin/upgrade supabase-js or regen types to match.
+- **Deferred:** search-builder UI (create `searches` rows for new discovery runs), lead assignment/archive, and live verification against real data.
 
 ### To run the project locally
 ```bash
@@ -112,8 +120,9 @@ uv run leadmachine hello               # smoke test
 - **M2 website qualification — code complete (mock-tested), not yet closed** ([#3]: #18–#21). Close after a live run; consider Scrapling `StealthyFetcher` fallback when a browser host exists.
 - **M3 financial enrichment — core code complete (mock-tested), not yet closed** ([#4]). Financials + revenue estimate + CVR contacts done; website contact-scrape folded into M2. Close after a live run.
 - **M4 scoring & qualification gate — code complete (mock-tested), not yet closed** ([#5]). Pure computation; no live run needed. Close once a live worker pass has populated real signals to score.
+- **M5 leads dashboard — core code complete (builds green), not yet closed** ([#6]). List + detail + pipeline done; search-builder UI + assignment/archive deferred. Close after live verification against real data.
 - **Open epics:** M1 [#2], M2 [#3], M3 [#4], M4 [#5], M5 [#6], M6 [#7], M7 [#8], V2 [#9].
-- **Open work issues:** none (M5–M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
+- **Open work issues:** none (M6–M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
 
 ## Schema cheat-sheet (`supabase/migrations/0001_init.sql`)
 
@@ -151,3 +160,9 @@ Built **M4** (`scoring/`, #5) — the last worker milestone — on branch `claud
 - Reused existing pieces: `band_midpoint` (M3), `branchekoder` catalog + `ACTIVE_STATUSES` (M1). Website ladder made monotonic by construction (none/dead/parked/fb 45 ≥ bad[23–45] > outdated 22 > modern 4 > unknown 0).
 - **Correction to the record:** despite Session 2's note, the M1–M3 (and now M4) commits are **on the working feature branch, not on `main`** — `main` is still `3b2e0ab` (foundation only). Merge to `main` when the milestone epics are closed after a live pass.
 - **Stopped at:** M4 built + committed on `claude/exciting-tesla-o21we4`. **Next = M5 leads dashboard (#6)** — see "▶ Next task" at top.
+
+### Session 4 — 2026-06-22  (push M1–M4 to main · M5 leads dashboard)
+- **Pushed M1–M4 to `main`** (fast-forward `220f44c..5c27e35`; `origin/main` already had M1–M3 + docs). Local `main` ref had been stale at `3b2e0ab`.
+- **Built M5 core** — the leads dashboard in `apps/web` (Next.js 15 + Supabase SSR). List with URL-driven filters + pagination (ranked by score); rich lead detail with the explainable score breakdown + enrichment + phone-first contact; pipeline management (status / notes / follow-ups) via server actions. Shared lib: branchekode group mirror, badges + da-DK formatters, typed jsonb views. `pnpm --filter web lint` + `build` both green.
+- **Toolchain snag:** supabase-js 2.108 typed-client infers `data`/write-params as `never` with our generated types → used `.returns<>()` / `Tables<>` assertions / `satisfies <T> as never` (the list page already did this). Noted for a future supabase-js pin or type regen.
+- **Stopped at:** M5 core committed on `claude/exciting-tesla-o21we4`. **Next = M6 Claude Danish sales angles (#7)** — see "▶ Next task" at top.
