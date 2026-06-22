@@ -7,25 +7,21 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) cores BUILT against mocks** (pending live run) · **next = M4 (scoring & qualification gate, #5)**.
-- **Branch:** `claude/compassionate-goldberg-x7nu36` == `main`, both at **`4fe09d1`** (M1+M2+M3 all on main, working tree clean).
+- **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) + M4 (scoring & qualification gate) cores BUILT against mocks** (M1–M3 pending a live run; M4 needs no live run) · **next = M5 (leads dashboard, #6)**.
+- **Branch:** working branch `claude/exciting-tesla-o21we4` holds M1–M4 (+ this log) on top of `main`; **`main` is still foundation-only (`3b2e0ab`)** — the milestone work has not been merged. Working tree clean.
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
 
-### ▶ Next task — M4: scoring & qualification gate ([#5](https://github.com/djn203040-cmd/lead-machine/issues/5))
-Turn the enriched signals into a 0–100 "needs a website now" score + ranking. All inputs already exist on `leads` + `lead_enrichment`; this is pure computation (no new network), so build + test it fully here (no live blockers).
+### ▶ Next task — M5: leads dashboard ([#6](https://github.com/djn203040-cmd/lead-machine/issues/6))
+Surface the scored pipeline in `apps/web` (Next.js 15 + Supabase, already scaffolded). This is the first big **web** milestone — the worker side (discover → qualify → enrich → score) is now code-complete. Read `apps/web/lib/database.types.ts` (regenerate if stale) before building queries.
 
-- **Suggested layout:** new `services/worker/src/leadmachine/scoring/` — `models.py` (`LeadToScore`, `ScoreBreakdown`), `rubric.py` (per-factor functions + weights), `score.py` (`score_lead()` → total+breakdown; `run_scoring()` + `SupabaseScoreWriter`), CLI `score`.
-- **Rubric (PLAN §5 / research §3), weights sum 100:**
-  - **Website-need 45** ← `leads.website_need`: none/dead/parked/facebook_only = 45; `bad` from `lead_enrichment.website.signals` (no viewport +12, no https +10, legacy +8, old copyright +6, PSI perf <50 +6 / 50–69 +3, one-page +3, cap 45); `outdated` mid; `modern` ~0–5.
-  - **Budget 20** ← `leads.employees_band`/`employees_exact` (1→4, 2–4→10, 5–9→16, 10–49→20, 50+→14, 0→4) + `lead_enrichment.financial` revenue/equity bump.
-  - **Presence 15** ← `lead_enrichment.social` (has_fb_page / has_meta_pixel). *(Reviews are V2 — presence in V1 = social only.)*
-  - **Industry 12** ← `leads.branchekode` via `cvr.branchekoder` group (local-service →12, marginal →6, poor →0).
-  - **Recency 8** ← active CVR status (already gated at discovery) + `founded_at`; reviews-recency is V2.
-- **Hard gate:** `reklamebeskyttet`/inactive are already suppressed at discovery, but encode the gate defensively (score 0 / skip).
-- **Persistence:** update `leads.score` + upsert `lead_scores` (total + `breakdown` jsonb + scored_at). Make weights honor `scoring_criteria` (11 seeded rows) so they're tunable without code.
-- **Then:** M5 leads dashboard (#6) surfaces ranked leads; M6 Claude angles (#7); M7 compliance/deploy (#8).
+- **Search-with-filters UI:** branchekode (grouped — the worker's `leadmachine categories` JSON / `cvr.branchekoder.grouped()` feeds the filter), postnr/kommune, employee band, `website_need`, score range, `pipeline_status`. A search creates/edits a `searches` row (its `parameters` jsonb is what `leadmachine discover --search-id` consumes).
+- **Leads table:** ranked by `leads.score desc` (index already exists). Columns: company, `website_need` badge, score, employees, city, phone, pipeline status. Server-side pagination/sort via Supabase.
+- **Lead detail:** show the explainable `lead_scores.breakdown` (per-factor points/max/detail — the shape `score_lead().as_dict()` writes), CVR firmographics, `lead_enrichment` (website evidence, financials + revenue estimate, decision-makers), phones. Leave space for the M6 Danish angle.
+- **Pipeline:** edit `pipeline_status` (new→enriched→qualified→contacted→meeting_booked→won/lost/discarded), `lead_notes`, `lead_followups`, assignment. Phone-first — no email-send UI in V1 (Markedsføringsloven §10).
+- **Auth/RLS:** all tables are `authenticated full access`; the app already wires Supabase auth (`/login`). The Python worker uses the service-role key and bypasses RLS — the dashboard must use the anon/publishable key + a logged-in session.
+- **Then:** M6 Claude Danish angles (#7) writes `lead_angles`; M7 compliance/deploy (#8); finally close M1–M4 epics after a live worker pass.
 
-### Built so far (mock-tested, all on main)
+### Built so far (mock-tested; on the working branch, **not yet on `main`**)
 
 ### M1: CVR discovery ([#2](https://github.com/djn203040-cmd/lead-machine/issues/2)) — built (mock-tested)
 All four work issues implemented under `services/worker/src/leadmachine/cvr/`, 32 tests green, ruff clean:
@@ -54,6 +50,18 @@ New package `services/worker/src/leadmachine/financial/`; +22 tests (54 total), 
 - **Shared** — extracted `leadmachine/_http.py` (retrying httpx JSON/bytes + UA header); CVR client now uses it.
 - **Live note:** sandbox blocks outbound to `distribution.virk.dk` (403); run `enrich-financial` from the worker host after a `discover` populates leads.
 - **Deferred (not acceptance-gating):** website contact-scrape → M2; per-location P-units → when multi-location targeting matters.
+
+### M4: Lead scoring & qualification gate ([#5](https://github.com/djn203040-cmd/lead-machine/issues/5)) — built (no live run needed)
+New package `services/worker/src/leadmachine/scoring/`; +42 tests (133 total), ruff clean. **Pure computation** over signals already on `leads` + `lead_enrichment` — no network, fully tested here.
+- **`rubric.py`** — five factors capped to sum 100, *inverted for selling websites* (no/dead/parked/facebook-only/bad site = best lead):
+  - **Website-need 45** ← `website_need`: `none`/`dead`/`parked`/`facebook_only` = 45; `bad` = sum of `website.signals` sub-points (no_viewport 12 / no_https 10 / legacy 8 / old_copyright 6 / psi<50 6, 50–69 3 / one_page 3), floored to 23 and capped 45 so it stays above `outdated` (22) > `modern` (4) > `unknown` (0) — ladder is monotonic by construction.
+  - **Budget 20** ← employee count (`employees_exact` else `band_midpoint(employees_band)`): 0/1→4, 2–4→10, 5–9→16, 10–49→20, 50+→14; + small financial bump (gross_profit>0 +2, equity>0 +2), capped 20.
+  - **Presence 15** ← `lead_enrichment.social`: has_fb_page +8, has_meta_pixel +7.
+  - **Industry 12** ← `branchekode`: catalogued vertical →12, same DB07 division (not catalogued) →6, else →0.
+  - **Recency 8** ← active CVR status +4, founded ≤3y +4 / ≤8y +2.
+- **Hard gate** — `gate_reason()`: `reklamebeskyttet` or an explicitly-inactive `cvr_status` → total 0 (a *missing* status is not gated; it would zero valid leads). Already suppressed at discovery; gated here defensively.
+- **Tunable weights** — `Weights.from_criteria()` overlays the 11 seeded `scoring_criteria` rows: `is_active=false` disables a signal, `config.points` overrides its value (the coarse low/medium/high `weight` column is a human label, not a numeric override). So weights retune from the DB with no code change.
+- **`score.py`** — `score_lead()` → `ScoreBreakdown` (explainable per-factor `points`/`max`/`detail`, versioned for the UI); `run_scoring()` + `SupabaseScoreWriter` upserts `lead_scores` and mirrors the total onto `leads.score`. CLI: `leadmachine score` (loads `scoring_criteria`, scores qualified leads). Sanity check: a no-website local plumber (2–4 emp, FB page, founded ~3y) → **87/100**.
 
 ### To run the project locally
 ```bash
@@ -103,8 +111,9 @@ uv run leadmachine hello               # smoke test
 - **M1 CVR discovery — code complete (mock-tested), not yet closed** ([#2]: #14–#17). Close after a live CVR-creds run confirms acceptance.
 - **M2 website qualification — code complete (mock-tested), not yet closed** ([#3]: #18–#21). Close after a live run; consider Scrapling `StealthyFetcher` fallback when a browser host exists.
 - **M3 financial enrichment — core code complete (mock-tested), not yet closed** ([#4]). Financials + revenue estimate + CVR contacts done; website contact-scrape folded into M2. Close after a live run.
+- **M4 scoring & qualification gate — code complete (mock-tested), not yet closed** ([#5]). Pure computation; no live run needed. Close once a live worker pass has populated real signals to score.
 - **Open epics:** M1 [#2], M2 [#3], M3 [#4], M4 [#5], M5 [#6], M6 [#7], M7 [#8], V2 [#9].
-- **Open work issues:** none (M4–M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
+- **Open work issues:** none (M5–M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
 
 ## Schema cheat-sheet (`supabase/migrations/0001_init.sql`)
 
@@ -135,3 +144,10 @@ Built three worker milestones in one session, each **free-first and fully mock-t
 **Blockers (live runs only — all code is mock-tested):** sandbox blocks outbound to `distribution.virk.dk` (CVR ES + offentliggoerelser) and the open web, so live `discover`/`enrich-financial`/`qualify` must run from the worker host. M1 still needs CVR ES creds; offentliggoerelser + website fetch need none; PSI optional via `PAGESPEED_API_KEY`. After a live pass, close #14–#21 (#2/#3/#4).
 
 **Stopped at:** M2 pushed to main. **Next = M4 scoring (#5)** — see "▶ Next task" at top.
+
+### Session 3 — 2026-06-22  (M4 — scoring & qualification gate)
+Built **M4** (`scoring/`, #5) — the last worker milestone — on branch `claude/exciting-tesla-o21we4`. Pure computation, **no live blockers**, fully mock-tested: **+42 tests → 133 green, ruff clean.**
+- `models.py` (`LeadToScore`/`FactorScore`/`ScoreBreakdown`, versioned) · `rubric.py` (five capped factors summing 100, `Weights` tunable via `scoring_criteria`, `gate_reason` hard gate) · `score.py` (`score_lead` → explainable breakdown; `run_scoring` + `SupabaseScoreWriter` → `leads.score` + `lead_scores`). CLI `leadmachine score`.
+- Reused existing pieces: `band_midpoint` (M3), `branchekoder` catalog + `ACTIVE_STATUSES` (M1). Website ladder made monotonic by construction (none/dead/parked/fb 45 ≥ bad[23–45] > outdated 22 > modern 4 > unknown 0).
+- **Correction to the record:** despite Session 2's note, the M1–M3 (and now M4) commits are **on the working feature branch, not on `main`** — `main` is still `3b2e0ab` (foundation only). Merge to `main` when the milestone epics are closed after a live pass.
+- **Stopped at:** M4 built + committed on `claude/exciting-tesla-o21we4`. **Next = M5 leads dashboard (#6)** — see "▶ Next task" at top.
