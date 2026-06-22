@@ -7,8 +7,8 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0 COMPLETE** · **M1 (CVR discovery) + M3 (financial enrichment) cores BUILT against mocks** (pending live run) · **next = M2 (website qualification, #18–#21)** → then M4 (scoring).
-- **Branch:** `claude/compassionate-goldberg-x7nu36` (also fast-forwarded to `main`) · latest commit = the M3 commit below.
+- **State:** V1 · **M0 COMPLETE** · **M1 (discovery) + M2 (website qualification) + M3 (financial enrichment) cores BUILT against mocks** (pending live run) · **next = M4 (scoring & qualification gate, #5)**.
+- **Branch:** `claude/compassionate-goldberg-x7nu36` (also fast-forwarded to `main`) · latest commit = the M2 commit below.
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
 
 ### M1: CVR discovery ([#2](https://github.com/djn203040-cmd/lead-machine/issues/2)) — built (mock-tested)
@@ -18,6 +18,16 @@ All four work issues implemented under `services/worker/src/leadmachine/cvr/`, 3
 - [#16](https://github.com/djn203040-cmd/lead-machine/issues/16) **Query builder** — `cvr/query.py` `SearchParameters` + `build_es_query()`: branchekode terms, postnr (discrete + ranges) / kommune OR-clause, employee band (matches monthly/quarterly/yearly cadence), status (defaults to active; explicit `[]` disables).
 - [#17](https://github.com/djn203040-cmd/lead-machine/issues/17) **Discovery job** — `cvr/discovery.py` `run_discovery()` + `SupabaseLeadWriter`: upsert `leads` on_conflict `cvr_number` (idempotent dedup), raw → `lead_enrichment.cvr`, suppress `reklamebeskyttet` + non-active status. `cvr/mapper.py` flattens `Vrvirksomhed` (current/non-secret contacts, latest employment, sole-trader detection). CLI: `leadmachine discover`.
 - **To run live:** get CVR creds (below) → `services/worker/.env` (`CVR_ES_USER`/`CVR_ES_PASSWORD`) → `uv run leadmachine discover -b 960210 -p 2200`.
+
+### M2: Website qualification ([#3](https://github.com/djn203040-cmd/lead-machine/issues/3), #18–#21) — built (mock-tested)
+The core qualifier. New package `services/worker/src/leadmachine/website/`; +37 tests (91 total), ruff clean. Added `dnspython` dep (lockfile updated).
+- **Resolve** (`resolve.py`) — CVR `Hjemmeside` → bucket: none / social (FB/IG/linktree) / free_subdomain (wixsite, business.site → "no real site") / real URL (normalized to https).
+- **Dead/parked** (`domain.py`, #19) — `Resolver` Protocol + `DnsResolver` (dnspython): no A/AAAA → dead; parking-NS (sedo/bodis/…) → parked; `classify_from_fetch` adds 4xx/marketplace-redirect/parked-content. Cheap DNS checks short-circuit before fetch.
+- **Fetch** (`fetch.py`, #18) — `WebsiteFetcher` Protocol + `HttpxFetcher` (https→http fallback captures "no HTTPS"). **Scrapling `StealthyFetcher` is the documented escalation** (browser dep, add on the worker host) — not a dep here so CI stays browser-free.
+- **Analyze** (`analyze.py`, #20) — stdlib HTML parse → viewport, HTTPS, legacy markup (font/frameset/FrontPage/table-layout), CMS/builder (WordPress/Wix/Squarespace/Webflow/Shopify + generator), copyright-year, one-page, FB link, Meta Pixel.
+- **PageSpeed** (`pagespeed.py`, #21) — `PageSpeedClient` (mobile, lab scores + red-flag audits), **gated**: only spent on live real sites that pass Tier-1 static screens.
+- **Classify** (`classify.py`) — ladder `none>dead>parked>facebook_only>bad>outdated>modern` + evidence payload → `leads.website_need` + `lead_enrichment.website`/`.social`. Job `run_qualification` + `SupabaseWebsiteWriter`. CLI: `leadmachine qualify`.
+- **Live note:** sandbox blocks outbound; run from the worker host. PSI needs `PAGESPEED_API_KEY` (free) else it's skipped.
 
 ### M3: Firmographic & financial enrichment ([#4](https://github.com/djn203040-cmd/lead-machine/issues/4)) — core built (mock-tested)
 New package `services/worker/src/leadmachine/financial/`; +22 tests (54 total), ruff clean. Scope confirmed with user = **financials core + CVR owners/management; website contact-scrape deferred to M2.**
@@ -75,9 +85,10 @@ uv run leadmachine hello               # smoke test
 
 - **M0 Foundation — ✅ closed** ([#1](https://github.com/djn203040-cmd/lead-machine/issues/1): #10, #11, #12, #13).
 - **M1 CVR discovery — code complete (mock-tested), not yet closed** ([#2]: #14–#17). Close after a live CVR-creds run confirms acceptance.
-- **M3 financial enrichment — core code complete (mock-tested), not yet closed** ([#4]). Financials + revenue estimate + CVR contacts done; website contact-scrape deferred to M2. Close after a live run.
+- **M2 website qualification — code complete (mock-tested), not yet closed** ([#3]: #18–#21). Close after a live run; consider Scrapling `StealthyFetcher` fallback when a browser host exists.
+- **M3 financial enrichment — core code complete (mock-tested), not yet closed** ([#4]). Financials + revenue estimate + CVR contacts done; website contact-scrape folded into M2. Close after a live run.
 - **Open epics:** M1 [#2], M2 [#3], M3 [#4], M4 [#5], M5 [#6], M6 [#7], M7 [#8], V2 [#9].
-- **Open work issues:** M2 #18–#21. (M4–M7 + V2 tasks are checklists inside their epics — expand into issues when reached.)
+- **Open work issues:** none (M4–M7 + V2 tasks are checklists inside their epics — expand into issues when reached).
 
 ## Schema cheat-sheet (`supabase/migrations/0001_init.sql`)
 
@@ -106,3 +117,10 @@ uv run leadmachine hello               # smoke test
 - **Scope confirmed w/ user:** financials core + CVR owners; **website contact-scrape deferred to M2** (needs Scrapling website-fetch infra). P-units deferred (not acceptance-gating).
 - **Live note:** outbound to `distribution.virk.dk` is 403 in this sandbox; `offentliggoerelser` is free/unauth, so a worker-host run needs no creds. CVR discovery still needs the ES creds.
 - **Next:** M2 (website qualification, #18–#21) to complete qualification signals, then M4 (scoring) which consumes M2 `website_need` + M3 financials.
+
+### Session 4 — 2026-06-22
+- **Built M2 (website qualification)** against mocks — the core "no/bad website" qualifier. New `website/` package: resolve → DNS dead/parked → httpx fetch (https→http fallback) → stdlib HTML analyze (viewport/HTTPS/legacy/CMS/copyright/FB/pixel/one-page) → gated PageSpeed → `website_need` ladder + evidence. Job `run_qualification` + `SupabaseWebsiteWriter`; CLI `qualify`. **+37 tests → 91 total, ruff clean.**
+- **Deps:** added `dnspython` (pure-Python) for NXDOMAIN/parking-NS detection; lockfile updated, `uv sync --frozen` clean.
+- **Design:** Scrapling `StealthyFetcher` left as the documented escalation behind the `WebsiteFetcher` Protocol (browser dep, add on worker host); enthec/webappanalyzer fingerprints can replace the DIY CMS detector for breadth.
+- **Pushed M3 then M2 to `main`** (fast-forwards).
+- **Next:** M4 — scoring & qualification gate (#5): 0–100 website-selling score (website-need 45 / budget 20 / presence 15 / industry 12 / recency 8) + hard gates (reklamebeskyttet/inactive already suppressed at discovery) consuming M2 `website_need` + M3 financials/employees + social presence.

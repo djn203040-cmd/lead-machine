@@ -70,6 +70,13 @@ class _FakeTable:
         self._on_conflict = on_conflict
         return self
 
+    def update(self, row: Any) -> "_FakeTable":
+        self._row = row
+        return self
+
+    def eq(self, *args: Any) -> "_FakeTable":
+        return self
+
     def execute(self) -> SimpleNamespace:
         self.log.append((self.name, self._row, self._on_conflict))
         if self.name == "leads":
@@ -164,3 +171,55 @@ class FakeFinancialWriter:
 
     def write(self, lead_id: str, financial: dict[str, Any], contact: dict[str, Any]) -> None:
         self.writes[lead_id] = (financial, contact)
+
+
+# --- website qualification (M2) --------------------------------------------
+class FakeResolver:
+    """Configurable DNS resolver. Defaults to a live, non-parked domain."""
+
+    def __init__(
+        self, addr_map: dict[str, list[str]] | None = None, ns_map: dict[str, list[str]] | None = None
+    ) -> None:
+        self.addr_map = addr_map or {}
+        self.ns_map = ns_map or {}
+
+    def addresses(self, domain: str) -> list[str]:
+        return self.addr_map.get(domain, ["1.2.3.4"])
+
+    def nameservers(self, domain: str) -> list[str]:
+        return self.ns_map.get(domain, ["ns1.hosting.dk", "ns2.hosting.dk"])
+
+
+class StubFetcher:
+    """Returns canned FetchResults; ``results`` is a {url: FetchResult} map or a
+    single FetchResult used for any URL."""
+
+    def __init__(self, results: Any) -> None:
+        self.results = results
+        self.fetched: list[str] = []
+
+    def fetch(self, url: str) -> Any:
+        self.fetched.append(url)
+        if isinstance(self.results, dict):
+            return self.results.get(url) or self.results.get("*")
+        return self.results
+
+
+class MockPageSpeed:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+        self.calls: list[str] = []
+
+    def analyze(self, url: str) -> Any:
+        self.calls.append(url)
+        return self.result
+
+
+class FakeWebsiteWriter:
+    def __init__(self) -> None:
+        self.writes: dict[str, tuple[str, dict[str, Any], dict[str, Any]]] = {}
+
+    def write(
+        self, lead_id: str, website_need: str, evidence: dict[str, Any], social: dict[str, Any]
+    ) -> None:
+        self.writes[lead_id] = (website_need, evidence, social)

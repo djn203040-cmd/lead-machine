@@ -132,5 +132,43 @@ def enrich_financial(
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
 
+@app.command()
+def qualify(
+    limit: int = typer.Option(200, help="Max leads to qualify in this run."),
+    only_unknown: bool = typer.Option(True, help="Only leads whose website_need is still unknown."),
+) -> None:
+    """Classify each lead's website_need (no/dead/parked/facebook/bad/...)."""
+    from .config import settings
+    from .db import get_client
+    from .website import (
+        DnsResolver,
+        HttpxFetcher,
+        PageSpeedClient,
+        SupabaseWebsiteWriter,
+        WebsiteDeps,
+        run_qualification,
+    )
+    from .website.models import LeadToQualify
+
+    db = get_client()
+    query = db.table("leads").select("id,website").not_.is_("cvr_number", "null")
+    if only_unknown:
+        query = query.eq("website_need", "unknown")
+    res = query.limit(limit).execute()
+    leads = [LeadToQualify(lead_id=r["id"], website=r.get("website")) for r in (res.data or [])]
+
+    psi = PageSpeedClient.from_settings(settings) if settings.pagespeed_api_key else None
+    fetcher = HttpxFetcher()
+    try:
+        deps = WebsiteDeps(fetcher=fetcher, resolver=DnsResolver(), pagespeed=psi)
+        stats = run_qualification(leads, deps, SupabaseWebsiteWriter(db))
+    finally:
+        fetcher.close()
+        if psi is not None:
+            psi.close()
+
+    typer.echo(json.dumps(stats.as_dict(), indent=2))
+
+
 if __name__ == "__main__":
     app()
