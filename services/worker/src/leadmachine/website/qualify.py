@@ -17,10 +17,11 @@ from typing import Any, Iterable, Protocol
 from .classify import assess
 from .domain import Resolver, classify_domain, classify_from_fetch
 from .fetch import WebsiteFetcher
+from .independence import is_not_independent
 from .models import DomainStatus, LeadToQualify, WebsiteAssessment
 from .resolve import resolve_website
 
-NEEDS = ("none", "dead", "parked", "facebook_only", "bad", "outdated", "modern")
+NEEDS = ("none", "dead", "parked", "facebook_only", "not_independent", "bad", "outdated", "modern")
 
 
 @dataclass(slots=True)
@@ -59,6 +60,11 @@ def qualify_one(lead: LeadToQualify, deps: WebsiteDeps, stats: QualifyStats | No
     resolve = resolve_website(lead.website)
     if resolve.kind in ("none", "social", "free_subdomain"):
         return assess(resolve)
+
+    # Footprint test: a live site that isn't on the business's own domain
+    # (a sub-page on a shared "group" platform) is a hot lead, not a real site.
+    if is_not_independent(resolve.host, resolve.url, lead.company_name):
+        return assess(resolve, not_independent=True)
 
     host = resolve.host or ""
     status = classify_domain(host, deps.resolver)

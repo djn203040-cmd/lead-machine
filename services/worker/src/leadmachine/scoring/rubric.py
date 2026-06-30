@@ -20,12 +20,13 @@ from ..cvr.query import ACTIVE_STATUSES
 from ..financial.estimate import band_midpoint
 from .models import FactorScore
 
-# Buckets where the business has no usable site at all → max website-need.
+# Buckets where the business has no usable site of their own → max website-need.
 _FULL_NEED_FIELD: dict[str, str] = {
     "none": "w_none",
     "dead": "w_dead_parked",
     "parked": "w_dead_parked",
     "facebook_only": "w_facebook",
+    "not_independent": "w_not_independent",
 }
 
 # DB07 2-digit divisions our catalog targets — a non-catalogued code in one of
@@ -56,6 +57,7 @@ class Weights:
     w_none: int = 45  # criterion: no_website
     w_dead_parked: int = 45  # criterion: dead_or_parked
     w_facebook: int = 45  # criterion: facebook_only
+    w_not_independent: int = 45  # criterion: not_independent (site on a shared platform)
     w_bad_floor: int = 23  # criterion: bad_website (floor; capped at cap_website)
     w_outdated: int = 22
     w_modern: int = 4
@@ -125,6 +127,7 @@ CRITERION_FIELD: dict[str, str] = {
     "no_website": "w_none",
     "dead_or_parked": "w_dead_parked",
     "facebook_only": "w_facebook",
+    "not_independent": "w_not_independent",
     "bad_website": "w_bad_floor",
     "not_mobile_friendly": "s_no_viewport",
     "no_https": "s_no_https",

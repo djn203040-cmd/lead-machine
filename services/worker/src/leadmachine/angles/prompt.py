@@ -11,11 +11,14 @@ from typing import Any
 from .models import LeadForAngle
 
 SYSTEM_PROMPT = """\
-You write phone-call sales angles for a Danish web-design agency. The agency \
-builds modern websites (roughly 10,000–20,000 DKK) for small local Danish \
-businesses and later upsells systems and automation. The strongest leads are \
-businesses with no website, a dead or parked domain, a Facebook-only presence, \
-or a bad/outdated site.
+You write phone-call sales angles for a Danish web-design agency. THE CORE \
+OFFER: the agency builds a complete demo website for the business completely \
+FOR FREE, so they can see exactly how their own modern site could look — no \
+obligation. If they like it, they pay to put it live and keep it (a build in \
+the roughly 10,000–20,000 DKK range). This free, no-risk demo is the hook every \
+angle should lead with. The strongest leads are businesses with no website, a \
+dead or parked domain, a Facebook-only presence, a site that lives on a shared \
+"group" platform instead of their own domain, or a bad/outdated site.
 
 You are given a factual brief about ONE business. Produce a concise pitch a \
 Danish salesperson can use to open a COLD PHONE CALL. B2B cold calls are legal \
@@ -25,17 +28,23 @@ Return JSON with these fields, all written in natural, professional Danish:
 - summary_da: 1–2 sentences on who the business is and why they are a good fit now.
 - weaknesses_da: the concrete, specific problems with their current web presence, \
 using only the facts in the brief.
-- angle_da: the core sales angle — how a new website helps THIS business win more \
-local customers. 2–3 benefit-led sentences.
+- angle_da: the core sales angle — lead with the free, no-obligation demo site \
+("vi bygger en færdig demo-hjemmeside til jer helt gratis, så I kan se hvordan \
+den kunne se ud") and 2–3 benefit-led sentences on how their own modern site \
+helps THIS business win more local customers. They only pay if they want to \
+keep it live.
 - opening_line_da: one natural spoken opening sentence for the call — friendly, \
-specific to their situation, not generic sales boilerplate.
+specific to their situation, not generic sales boilerplate. It may tease the \
+free demo.
 - competitor_name: a named competitor ONLY if one appears in the brief; otherwise "".
 - competitor_angle_type: "fomo" if the angle leans on competitors being more \
 visible online, "first_mover" if it leans on being first/best online locally, \
 or "none".
 
 Rules: ground every claim in the brief. Never invent facts, numbers, awards, or \
-competitor names. No emojis. Keep it tight — this is a call opener, not a brochure."""
+competitor names. Always keep the free demo offer accurate — it is free to see, \
+paid only to launch. No emojis. Keep it tight — this is a call opener, not a \
+brochure."""
 
 # website_need → Danish label for the brief.
 _NEED_DA: dict[str, str] = {
@@ -43,6 +52,7 @@ _NEED_DA: dict[str, str] = {
     "dead": "Dødt domæne",
     "parked": "Parkeret domæne",
     "facebook_only": "Kun en Facebook-side, ingen rigtig hjemmeside",
+    "not_independent": "Har kun en underside på en fælles platform — ikke deres eget domæne",
     "bad": "Dårlig hjemmeside",
     "outdated": "Forældet hjemmeside",
     "modern": "Moderne hjemmeside",
@@ -61,6 +71,16 @@ _FACTOR_DA: dict[str, str] = {
 def _weaknesses(lead: LeadForAngle) -> list[str]:
     """Human-readable Danish web-presence weaknesses, from website_need + signals."""
     need = lead.website_need
+    if need == "not_independent":
+        out = [
+            "har ikke deres eget domæne — siden ligger på en fælles platform",
+            "deler SEO/synlighed med andre virksomheder på platformen",
+            "ingen kontrol over eget brand og egen hjemmeside",
+        ]
+        host = (lead.website or {}).get("platform_host")
+        if host:
+            out.append(f"siden hostes under {host}")
+        return out
     if need in ("none", "dead", "parked", "facebook_only"):
         return [_NEED_DA.get(need, need)]
 

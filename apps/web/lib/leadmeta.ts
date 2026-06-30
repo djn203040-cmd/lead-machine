@@ -2,13 +2,15 @@
 
 type BadgeMeta = { label: string; className: string };
 
-// website_need ladder. For a website agency, "no/dead/parked/facebook-only/bad"
-// = the best leads, so those get the strong (emerald) tone; modern is muted.
+// website_need ladder. For a website agency, "no/dead/parked/facebook-only/
+// not-independent" = the best leads, so those get the strong (brand) tone;
+// bad/outdated are amber, modern is muted.
 export const WEBSITE_NEED_META: Record<string, BadgeMeta> = {
   none: { label: "Ingen hjemmeside", className: "chip-brand" },
   dead: { label: "Dødt domæne", className: "chip-brand" },
   parked: { label: "Parkeret domæne", className: "chip-brand" },
   facebook_only: { label: "Kun Facebook", className: "chip-brand" },
+  not_independent: { label: "Ej selvstændig side", className: "chip-brand" },
   bad: { label: "Dårlig hjemmeside", className: "chip-amber" },
   outdated: { label: "Forældet", className: "chip-amber" },
   modern: { label: "Moderne", className: "chip-neutral" },

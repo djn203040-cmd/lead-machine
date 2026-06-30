@@ -77,6 +77,7 @@ def assess(
     signals: WebsiteSignals | None = None,
     psi: PageSpeedResult | None = None,
     fetch_failed: bool = False,
+    not_independent: bool = False,
     current_year: int | None = None,
 ) -> WebsiteAssessment:
     year = current_year or date.today().year
@@ -89,6 +90,13 @@ def assess(
     if resolve.kind == "free_subdomain":
         evidence["note"] = "free_subdomain_no_real_site"
         return WebsiteAssessment("none", evidence)
+
+    # Lives on a shared "group" platform — not the business's own domain.
+    if not_independent:
+        evidence["note"] = "not_independent_platform"
+        if resolve.host:
+            evidence["platform_host"] = resolve.host
+        return WebsiteAssessment("not_independent", evidence, _social_payload(signals, resolve))
 
     # Real custom-domain site.
     if fetch_failed:

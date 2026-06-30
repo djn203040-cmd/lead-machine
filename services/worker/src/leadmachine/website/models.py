@@ -92,3 +92,4 @@ class WebsiteAssessment:
 class LeadToQualify:
     lead_id: str
     website: str | None = None
+    company_name: str | None = None

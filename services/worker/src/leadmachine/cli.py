@@ -159,11 +159,14 @@ def qualify(
     from .jobs import JobRun
 
     db = get_client()
-    query = db.table("leads").select("id,website").not_.is_("cvr_number", "null")
+    query = db.table("leads").select("id,website,company_name").not_.is_("cvr_number", "null")
     if only_unknown:
         query = query.eq("website_need", "unknown")
     res = query.limit(limit).execute()
-    leads = [LeadToQualify(lead_id=r["id"], website=r.get("website")) for r in (res.data or [])]
+    leads = [
+        LeadToQualify(lead_id=r["id"], website=r.get("website"), company_name=r.get("company_name"))
+        for r in (res.data or [])
+    ]
 
     psi = PageSpeedClient.from_settings(settings) if settings.pagespeed_api_key else None
     fetcher = HttpxFetcher()

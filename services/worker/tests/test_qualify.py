@@ -42,6 +42,18 @@ def test_facebook_only_skips_network() -> None:
     assert fetcher.fetched == []  # no fetch for social-only
 
 
+def test_not_independent_skips_network() -> None:
+    fetcher = StubFetcher(_modern_fetch())
+    deps = WebsiteDeps(fetcher=fetcher, resolver=FakeResolver())
+    a = qualify_one(
+        LeadToQualify("L", "https://foodfamilygroup.dk/bistrosolera/", "Bistro Solera"),
+        deps,
+    )
+    assert a.website_need == "not_independent"
+    assert a.evidence.get("platform_host") == "foodfamilygroup.dk"
+    assert fetcher.fetched == []  # ownership is judged without fetching
+
+
 def test_dead_domain() -> None:
     deps = _deps(_modern_fetch(), resolver=FakeResolver(addr_map={"gone.dk": []}))
     a = qualify_one(LeadToQualify("L", "gone.dk"), deps)
