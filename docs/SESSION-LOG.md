@@ -7,19 +7,25 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0 COMPLETE** · **M1–M6 cores BUILT** · **M7 (#8) code+docs BUILT** — compliance (Robinson screening + LIA + Art. 14 notices), observability (`jobs` run-log), and deploy artifacts/runbook are done & green. **Remaining M7 = live deploy + the one-city E2E pass + closing the M1–M6 epics — all blocked on a live worker host + real creds (can't run in this sandbox).**
-- **Branch:** working branch `claude/resume-point-branch-check-r90jni`. **Correction:** M1–M6 are on `main`; this branch carries M7. (Earlier logs said the working branch was `claude/exciting-tesla-o21we4`.)
-- **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude for Danish angles.
+- **State:** V1 · **M0–M7 all on `main`** · **FULL PIPELINE PROVEN LIVE (Session 7, 2026-06-30)** — ran `discover → qualify → enrich-financial → score → angles` against real CVR creds + live Supabase + real `ANTHROPIC_API_KEY`. Migration `0002_compliance.sql` is **already applied** to the live DB. The index is **LIVE current data** (not a 2022 snapshot — that's just a stale alias label). **Remaining = production deploy (Vercel/Fly) + Robinson list + publish privacy notice + close epics.**
+- **Branch:** `main`. **Session 7 changes are UNCOMMITTED in the working tree** (6 files — see below). Commit/push when ready.
+- **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude (`claude-opus-4-8`) for Danish angles.
+- **Local dev is set up:** `uv` installed; `services/worker/.env` + `apps/web/.env.local` filled with real creds (both gitignored). `pnpm install` + `uv sync` done. `pnpm --filter web dev` boots against live Supabase. 165 worker tests green, ruff clean, web builds.
 
-### ▶ Next task — finish shipping M7 ([#8](https://github.com/djn203040-cmd/lead-machine/issues/8)) — needs a live host
-M7 code + docs are **done** (see Session 6). What's left is the part that can't run in this sandbox:
-- **Apply migration `0002_compliance.sql`** to Supabase (`supabase db push`).
-- **Deploy** per [`docs/DEPLOY.md`](DEPLOY.md): web→Vercel, worker→Fly.io (Dockerfile + fly.toml ready), set the env matrix.
+### ▶ Uncommitted working-tree changes (Session 7) — review & commit
+1. **`cvr/query.py`** + `tests/test_query.py` — **status-filter bug fix.** `sammensatStatus` is analyzed *text*, so the old `terms:["NORMAL","AKTIV"]` filter matched nothing → `discover` returned 0 leads. Now `_status_clause()` uses `match`-per-status in a `should`. This was the bug blocking ALL discovery.
+2. **`cvr/branchekoder.py`** + `apps/web/lib/branchekoder.ts` + `tests/test_branchekoder.py` + `tests/test_scoring.py` — **catalog regenerated** against the live register (Denmark migrated active companies to revised DB codes; ~half the old codes matched only ceased firms). Key remaps: 960210→962100 frisør, 561010→561110 restaurant, 691010→741100 advokat, 692020→692000, 452010→953190, 477100→477110, 960220→962200, 960400→962300, 960900→969900, 869010+869090→869900, 107100→107120, 563000→563020. Low-yield kept-as-is: 561020 pizza, 451120 car, 477810 optiker, 562900.
+
+### ▶ Next task — finish shipping M7 ([#8](https://github.com/djn203040-cmd/lead-machine/issues/8))
+The live E2E pass is **done** (Session 7). What remains is production hosting + paperwork:
+- **Commit & push** the 6 Session-7 files to `main`.
+- **Deploy** per [`docs/DEPLOY.md`](DEPLOY.md): web→Vercel, worker→Fly.io (Dockerfile + fly.toml ready), set the env matrix. (Migration already applied.)
 - **Provision the Robinson list** on the worker host, set `ROBINSON_LIST_PATH`, run `leadmachine screen` (warns loudly if the list is empty).
 - **Fill the `[…]` placeholders** in `docs/compliance/LIA.md` + `privacy-notice.md` (controller/contact/URL) and **publish** the privacy notice.
-- **Run the one-city E2E** (`discover → screen → qualify → enrich-financial → score → angles`) against real CVR creds + keys, then **close the M1–M6 epics** (#2/#3/#4/#5/#6/#7) once acceptance is confirmed on real data.
-- **Deferred (V1 follow-ups or V2):** search-builder UI (create `searches` rows), lead assignment/archive UI, a "generér vinkel" button (on-demand M6). **V2:** reviews/reputation + outreach automation (#9).
-- **Blockers needing a live host:** CVR ES creds (#14), `ANTHROPIC_API_KEY` (M6), `PAGESPEED_API_KEY` (optional), Supabase `service_role` key, the **Robinson register file** — see the table below.
+- **Close the M1–M6 epics** (#2/#3/#4/#5/#6/#7) — acceptance now confirmed on real data.
+- **Optional cleanup:** the 99 restaurant leads (8000) are discovered but not yet qualified/enriched/scored/angled — run the rest if you want them complete.
+- **Deferred (V1 follow-ups or V2):** search-builder UI, lead assignment/archive UI, on-demand "generér vinkel" button. **V2:** reviews/reputation + outreach automation (#9).
+- **Tuning idea (declined this session):** tune the catalog to the user's real target industries + surface contactable-yield % per vertical.
 
 ### M7: compliance, deploy & ship — code + docs built (Session 6)
 **Branch `claude/resume-point-branch-check-r90jni`. +20 tests → 165 green, ruff clean; web lint + build green.**
@@ -202,3 +208,14 @@ Built the in-sandbox half of M7 on `claude/resume-point-branch-check-r90jni`: th
 - **Docs** — `docs/compliance/` (LIA, Art. 14 public notice + first-contact script, README+checklist) and `docs/DEPLOY.md` (env matrix, Vercel+Fly steps, E2E sequence, runbook). Artifacts: worker `Dockerfile`, `fly.toml`, web `vercel.json`.
 - **Decision/scope:** kept V1 phone-first (no email channel); represented compliance suppression as explicit `leads.suppressed` columns (not reusing `is_archived`) for auditability; Robinson data is licensed → never committed, loaded at runtime.
 - **Stopped at:** M7 code+docs committed + pushed on `claude/resume-point-branch-check-r90jni`. **Next = the live-host finish of M7** (deploy + E2E + close epics) — see "▶ Next task" at top. NOT yet merged to `main` (merge when M7 ships / epics close).
+
+### Session 7 — 2026-06-30  (cloned to local · FULL LIVE E2E · discovery bug fix · catalog regen)
+Cloned the repo into `Desktop/Claude code/Lead machine`, stood up local dev, and ran the **entire pipeline live on real Danish data** for the first time. Provided creds: real Supabase `service_role`, CVR ES system creds, real `ANTHROPIC_API_KEY` (all in gitignored `.env`s).
+- **Got everything green locally:** installed `uv`, `pnpm install`, `uv sync`; 165 worker tests pass, ruff clean, web lint+build green, dev server boots against live Supabase (auth middleware redirects `/`→`/login`).
+- **Confirmed live DB state:** all 9 tables migrated incl. `0002_compliance` **already applied**; 11 `scoring_criteria` seeded.
+- **Found & fixed the discovery-blocking bug:** first `discover` returned 0. Root cause: `sammensatStatus` is an **analyzed text field**, so `terms:["NORMAL","AKTIV"]` never matched → 0 active companies. Fixed `cvr/query.py` to use `match`. Also discovered the index name `cvr-v-20220630` is a **stale alias on LIVE data** (36k companies founded 2026, updated within days) — NOT a 2022 snapshot. The XBRL/financial channel (`regnskaber.virk.dk`) is also live (2026 reports).
+- **Ran the full live E2E** (hairdressers 962100 / postnr 2200): `discover` → 48 leads (91 suppressed reklamebeskyttet) → `qualify` → 45 no-website / 3 modern → `enrich-financial` → 5 real annual reports + 10 revenue estimates + 5 contacts → `score` → top "The Choice ApS" 73 → `angles` → 48 Danish phone-first pitches (genuinely good, neighborhood-aware). Every step logged to `jobs`. **All 5 stages work on real data.**
+- **Regenerated the branchekode catalog** (the user asked). Audited all 38 codes live: ~half matched only ceased companies because Denmark revised the codes. Rewrote `branchekoder.py` + the `apps/web` mirror + tests with live-verified current codes (see "Uncommitted changes" up top). Proven live: restaurants 561110 in Aarhus 8000 → 99 leads (was 0 under old 561010). DB now has 147 leads (48 fully processed + 99 restaurants discovered-only).
+- **Measured `reklamebeskyttelse`:** ~**67% of active companies** are ad-protected (range 47% dentists → 76% photographers; by form: A/S 44% < sole-trader 63% < ApS 65% < I/S 80%). So a search yields ~⅓ contactable leads — the pipeline auto-suppresses the rest at discovery.
+- **Decisions this session:** (1) keep dropping reklamebeskyttet leads at discovery — storing them adds no value (the count is already in job stats; re-discovery re-checks protection); do NOT fold them into the scored pipeline with a low score (reklamebeskyttelse is a legal opt-out under CVR-loven, applies regardless of score/channel incl. phone). (2) Declined catalog target-tuning for now.
+- **Stopped at:** Session-7 changes UNCOMMITTED on `main` (6 files). **Next = commit/push + production deploy** — see "▶ Next task" at top.

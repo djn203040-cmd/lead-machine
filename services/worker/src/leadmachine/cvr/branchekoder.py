@@ -10,6 +10,16 @@ high-level category so the dashboard (M5) can render a grouped filter.
 This is the initial seed covering the verticals in PLAN.md §5 (local service
 businesses that live or die on local search). Extend it as new ICPs appear;
 verify any added code against the official DB07 list from Danmarks Statistik.
+
+Regenerated 2026-06-30 against the live CVR register (``distribution.virk.dk``).
+Denmark migrated active companies to revised branchekoder, so several of the
+original DB07-2007 codes (e.g. ``960210`` frisør, ``561010`` restaurant,
+``691010`` advokat) now match *only ceased* companies — their live equivalents
+(``962100`` / ``561110`` / ``741100`` …) are used here. Each ``label_da`` is the
+current official ``branchetekst``. A handful of niches (pizza/grill ``561020``,
+car dealers ``451120``, opticians ``477810``, other food service ``562900``)
+keep their canonical code but had few/no ``NORMAL``/``Aktiv`` rows in the
+snapshot — discovery may return thin results for those verticals.
 """
 
 from __future__ import annotations
@@ -46,49 +56,49 @@ GROUPS: dict[str, str] = {
 }
 
 
-# The catalog. Only codes we are confident map to the DB07 standard are listed.
+# The catalog. Codes verified against the live CVR register (active = NORMAL /
+# Aktiv count noted) on 2026-06-30. ``label_da`` is the current branchetekst.
 CATALOG: tuple[Branche, ...] = (
     # --- Mad & drikke -------------------------------------------------------
-    Branche("561010", "Restauranter", "Restaurants", "food_drink"),
+    Branche("561110", "Servering af mad i restauranter og caféer", "Restaurants", "food_drink"),
     Branche("561020", "Pizzeriaer, grillbarer, isbarer mv.", "Pizza/grill/takeaway", "food_drink"),
-    Branche("563000", "Cafeer, værtshuse, diskoteker mv.", "Cafés, bars, clubs", "food_drink"),
+    Branche("563020", "Udskænkning af alkoholiske drikkevarer (barer, værtshuse)", "Bars & pubs", "food_drink"),
     Branche("562100", "Event catering", "Event catering", "food_drink"),
     Branche("562900", "Anden restaurationsvirksomhed", "Other food service", "food_drink"),
-    Branche("107100", "Fremstilling af friske bagerivarer", "Bakeries", "food_drink"),
+    Branche("107120", "Fremstilling af friske bageriprodukter", "Bakeries", "food_drink"),
     # --- Skønhed & velvære --------------------------------------------------
-    Branche("960210", "Frisørsaloner", "Hairdressers", "beauty_wellness"),
-    Branche("960220", "Skønheds- og hudpleje", "Beauty & skin care", "beauty_wellness"),
-    Branche("960400", "Aktiviteter vedr. fysisk velvære", "Physical wellbeing (spa, massage)", "beauty_wellness"),
-    Branche("960900", "Anden personlig service", "Other personal service", "beauty_wellness"),
+    Branche("962100", "Drift af frisør- og barbersaloner", "Hairdressers", "beauty_wellness"),
+    Branche("962200", "Skønhedspleje og anden skønhedsbehandling", "Beauty & skin care", "beauty_wellness"),
+    Branche("962300", "Drift af dagspa, saunaer og dampbade", "Spa & physical wellbeing", "beauty_wellness"),
+    Branche("969900", "Andre personlige serviceydelser i.a.n.", "Other personal service", "beauty_wellness"),
     # --- Sundhed ------------------------------------------------------------
     Branche("862300", "Praktiserende tandlæger", "Dentists", "health"),
     Branche("862100", "Alment praktiserende læger", "GPs", "health"),
     Branche("862200", "Praktiserende speciallæger", "Medical specialists", "health"),
-    Branche("869010", "Fysioterapeutisk behandling", "Physiotherapists", "health"),
-    Branche("869090", "Sundhedsvæsen i øvrigt", "Other health practitioners", "health"),
+    Branche("869900", "Sundhedsvæsen i øvrigt (klinikker, fysioterapi mv.)", "Other health practitioners", "health"),
     Branche("750000", "Dyrlæger", "Veterinarians", "health"),
     # --- Håndværk & bygge ---------------------------------------------------
     Branche("432200", "VVS- og blikkenslagerforretninger", "Plumbers", "trades"),
-    Branche("432100", "El-installatører", "Electricians", "trades"),
+    Branche("432100", "El-installation", "Electricians", "trades"),
     Branche("433200", "Tømrer- og bygningssnedkervirksomhed", "Carpenters/joiners", "trades"),
     Branche("433410", "Malerforretninger", "Painters", "trades"),
-    Branche("433420", "Glarmesterforretninger", "Glaziers", "trades"),
+    Branche("433420", "Glarmestervirksomhed", "Glaziers", "trades"),
     Branche("439100", "Tagdækningsvirksomhed", "Roofers", "trades"),
     Branche("813000", "Landskabspleje", "Landscaping/gardening", "trades"),
     Branche("812100", "Almindelig rengøring i bygninger", "Cleaning", "trades"),
     # --- Auto ---------------------------------------------------------------
-    Branche("452010", "Almindelige autoreparationsværksteder", "Auto repair", "auto"),
-    Branche("451110", "Detailhandel med personbiler mv.", "Car dealers", "auto"),
+    Branche("953190", "Reparation og vedligeholdelse af motorkøretøjer i.a.n.", "Auto repair", "auto"),
+    Branche("451120", "Detailhandel med personbiler, varebiler og minibusser", "Car dealers", "auto"),
     # --- Detailhandel -------------------------------------------------------
-    Branche("477810", "Detailhandel med optiske artikler", "Opticians", "retail"),
-    Branche("477620", "Detailhandel med blomster og planter", "Florists", "retail"),
-    Branche("472200", "Detailhandel med kød og kødprodukter", "Butchers", "retail"),
-    Branche("477100", "Detailhandel med beklædning", "Clothing retail", "retail"),
-    Branche("477700", "Detailhandel med ure og smykker", "Jewellery", "retail"),
+    Branche("477810", "Optikere", "Opticians", "retail"),
+    Branche("477620", "Planteforhandlere og havecentre", "Florists & garden centres", "retail"),
+    Branche("472200", "Slagter- og viktualieforretninger", "Butchers", "retail"),
+    Branche("477110", "Tøjforretninger", "Clothing retail", "retail"),
+    Branche("477700", "Detailhandel med ure, smykker og guld- og sølvvarer", "Jewellery", "retail"),
     # --- Liberale erhverv ---------------------------------------------------
     Branche("683110", "Ejendomsmæglere mv.", "Real estate agents", "professional"),
-    Branche("691010", "Advokatvirksomhed", "Law firms", "professional"),
-    Branche("692020", "Bogføring og revision; skatterådgivning", "Bookkeeping/accounting", "professional"),
+    Branche("741100", "Advokatvirksomhed", "Law firms", "professional"),
+    Branche("692000", "Bogføring og revision; skatterådgivning", "Bookkeeping/accounting", "professional"),
     Branche("742000", "Fotografisk virksomhed", "Photographers", "professional"),
     Branche("855300", "Køreskoler", "Driving schools", "professional"),
     # --- Sport & fritid -----------------------------------------------------

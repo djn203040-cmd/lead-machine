@@ -154,8 +154,8 @@ def test_presence_fb_and_pixel() -> None:
 
 # --- industry factor (12) --------------------------------------------------
 def test_industry_tiers() -> None:
-    assert score_industry("960210", W).points == 12  # catalogued (hairdresser)
-    assert score_industry("96.02.10", W).points == 12  # dotted form normalizes
+    assert score_industry("962100", W).points == 12  # catalogued (hairdresser)
+    assert score_industry("96.21.00", W).points == 12  # dotted form normalizes
     assert score_industry("960230", W).points == 6  # same division, not catalogued
     assert score_industry("010000", W).points == 0  # unrelated division
     assert score_industry(None, W).points == 0
@@ -199,7 +199,7 @@ def _ideal_lead(**kw) -> LeadToScore:
     base = dict(
         lead_id="L1",
         website_need="none",
-        branchekode="960210",
+        branchekode="962100",
         employees_exact=12,
         founded_at="2024-06-01",
         cvr_status="NORMAL",
@@ -237,7 +237,7 @@ def test_breakdown_as_dict_shape() -> None:
     assert out["version"] == 1
     assert out["total"] == 100
     assert out["gated"] is False
-    assert out["factors"]["industry"] == {"points": 12, "max": 12, "detail": {"tier": "local_service", "branchekode": "960210"}}
+    assert out["factors"]["industry"] == {"points": 12, "max": 12, "detail": {"tier": "local_service", "branchekode": "962100"}}
 
 
 # --- weights tunable from scoring_criteria ---------------------------------

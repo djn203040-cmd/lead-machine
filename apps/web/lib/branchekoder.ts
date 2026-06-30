@@ -27,25 +27,25 @@ export const GROUPS: Record<BranchekodeGroup, string> = {
 };
 
 // 6-digit CVR code -> group.
+// Live-verified codes (2026-06-30). Mirrors branchekoder.py CATALOG.
 export const CODE_GROUP: Record<string, BranchekodeGroup> = {
   // Mad & drikke
-  "561010": "food_drink",
+  "561110": "food_drink",
   "561020": "food_drink",
-  "563000": "food_drink",
+  "563020": "food_drink",
   "562100": "food_drink",
   "562900": "food_drink",
-  "107100": "food_drink",
+  "107120": "food_drink",
   // Skønhed & velvære
-  "960210": "beauty_wellness",
-  "960220": "beauty_wellness",
-  "960400": "beauty_wellness",
-  "960900": "beauty_wellness",
+  "962100": "beauty_wellness",
+  "962200": "beauty_wellness",
+  "962300": "beauty_wellness",
+  "969900": "beauty_wellness",
   // Sundhed
   "862300": "health",
   "862100": "health",
   "862200": "health",
-  "869010": "health",
-  "869090": "health",
+  "869900": "health",
   "750000": "health",
   // Håndværk & bygge
   "432200": "trades",
@@ -57,18 +57,18 @@ export const CODE_GROUP: Record<string, BranchekodeGroup> = {
   "813000": "trades",
   "812100": "trades",
   // Auto
-  "452010": "auto",
-  "451110": "auto",
+  "953190": "auto",
+  "451120": "auto",
   // Detailhandel
   "477810": "retail",
   "477620": "retail",
   "472200": "retail",
-  "477100": "retail",
+  "477110": "retail",
   "477700": "retail",
   // Liberale erhverv
   "683110": "professional",
-  "691010": "professional",
-  "692020": "professional",
+  "741100": "professional",
+  "692000": "professional",
   "742000": "professional",
   "855300": "professional",
   // Sport & fritid

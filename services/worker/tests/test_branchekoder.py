@@ -9,18 +9,18 @@ def test_catalog_codes_are_unique_6digit_strings() -> None:
         assert len(c) == 6 and c.isdigit(), f"{c} is not a 6-digit branchekode"
 
 
-def test_plan_vetted_codes_present() -> None:
-    # The codes explicitly listed in PLAN.md must be in the catalog.
-    for code in ("960210", "561010", "432200", "862300", "931300"):
+def test_core_verticals_present() -> None:
+    # Live-verified codes for core verticals must be in the catalog.
+    for code in ("962100", "561110", "432200", "862300", "931300"):
         assert bk.by_code(code) is not None, f"{code} missing from catalog"
 
 
 def test_by_code_accepts_dotted_db07() -> None:
-    frisor = bk.by_code("96.02.10")
+    frisor = bk.by_code("96.21.00")
     assert frisor is not None
-    assert frisor.code == "960210"
-    assert frisor.code_db07 == "96.02.10"
-    assert frisor.label_da == "Frisørsaloner"
+    assert frisor.code == "962100"
+    assert frisor.code_db07 == "96.21.00"
+    assert frisor.label_da == "Drift af frisør- og barbersaloner"
 
 
 def test_normalize_code_strips_dots_and_spaces() -> None:
