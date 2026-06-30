@@ -28,8 +28,8 @@ export const dynamic = "force-dynamic";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded border bg-white p-4">
-      <h2 className="mb-3 text-sm font-semibold text-gray-700">{title}</h2>
+    <section className="card card-pad">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-faint">{title}</h2>
       {children}
     </section>
   );
@@ -38,9 +38,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   const empty = value === null || value === undefined || value === "";
   return (
-    <div className="flex justify-between gap-4 py-1 text-sm">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="text-right text-gray-900">{empty ? "—" : value}</dd>
+    <div className="flex justify-between gap-4 border-b border-line/60 py-2 text-sm last:border-0">
+      <dt className="text-muted">{label}</dt>
+      <dd className="text-right font-medium text-ink">{empty ? "—" : value}</dd>
     </div>
   );
 }
@@ -58,9 +58,9 @@ const COMPETITOR_ANGLE_DA: Record<string, string> = {
 function AnglePart({ label, text }: { label: string; text: string | null }) {
   if (!text) return null;
   return (
-    <div className="mt-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">{label}</p>
-      <p className="text-sm whitespace-pre-wrap text-gray-800">{text}</p>
+    <div className="mt-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{label}</p>
+      <p className="mt-0.5 whitespace-pre-wrap text-sm text-ink">{text}</p>
     </div>
   );
 }
@@ -113,19 +113,22 @@ export default async function LeadDetailPage({
 
   return (
     <div>
-      <Link href="/leads" className="text-sm text-gray-500 hover:underline">
+      <Link
+        href="/leads"
+        className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-brand-700"
+      >
         ← Tilbage til leads
       </Link>
 
-      <div className="mb-6 mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">{lead.company_name}</h1>
+      <div className="mb-6 mt-3 flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight text-ink">{lead.company_name}</h1>
         <ScoreChip score={scoreRow?.total ?? lead.score} />
         <WebsiteNeedBadge need={lead.website_need} />
         <PipelineBadge status={lead.pipeline_status} />
       </div>
 
       {lead.suppressed && (
-        <div className="mb-6 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+        <div className="mb-6 rounded-xl border border-rose-fg/30 bg-rose-bg p-4 text-sm text-rose-fg">
           <span className="font-semibold">Undertrykt — må ikke kontaktes.</span>{" "}
           {lead.suppression_reason === "robinson"
             ? "Indehaveren står på Robinsonlisten (frabedt sig markedsføring)."
@@ -136,17 +139,24 @@ export default async function LeadDetailPage({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {angle && (
-            <section className="rounded border border-emerald-200 bg-emerald-50 p-4">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-emerald-900">Salgsvinkel</h2>
-                <span className="text-xs text-emerald-700">
+            <section className="overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100/50 p-5 shadow-[var(--shadow-card)]">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-brand-800">
+                  <span className="grid h-6 w-6 place-items-center rounded-md bg-brand-700 text-white">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path d="m13 2-9 11h6l-1 9 9-11h-6z" fill="currentColor" />
+                    </svg>
+                  </span>
+                  Salgsvinkel
+                </h2>
+                <span className="text-xs text-brand-700">
                   {COMPETITOR_ANGLE_DA[angle.competitor_angle_type ?? ""] ?? ""}
                   {angle.competitor_name ? ` · ${angle.competitor_name}` : ""}
                   {angle.generated_at ? ` · ${formatDate(angle.generated_at)}` : ""}
                 </span>
               </div>
               {angle.opening_line_da && (
-                <blockquote className="border-l-2 border-emerald-400 pl-3 text-base font-medium text-gray-900">
+                <blockquote className="border-l-2 border-brand-500 pl-3 text-base font-medium text-ink">
                   «{angle.opening_line_da}»
                 </blockquote>
               )}
@@ -174,30 +184,30 @@ export default async function LeadDetailPage({
           {breakdown && (
             <Section title="Score-forklaring">
               {breakdown.gated ? (
-                <p className="text-sm text-rose-700">
+                <p className="text-sm text-rose-fg">
                   Udelukket fra scoring{breakdown.gate_reason ? ` (${breakdown.gate_reason})` : ""}.
                 </p>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-3.5">
                   {FACTOR_ORDER.filter((k) => breakdown.factors[k]).map((k) => {
                     const f = breakdown.factors[k];
                     const pct = f.max ? Math.round((f.points / f.max) * 100) : 0;
                     return (
                       <li key={k}>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-700">{FACTOR_LABELS_DA[k] ?? k}</span>
-                          <span className="tabular-nums text-gray-500">
+                          <span className="text-ink">{FACTOR_LABELS_DA[k] ?? k}</span>
+                          <span className="font-mono tabular-nums text-muted">
                             {f.points}/{f.max}
                           </span>
                         </div>
-                        <div className="mt-1 h-2 rounded bg-gray-100">
+                        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[#edece6]">
                           <div
-                            className="h-2 rounded bg-emerald-500"
+                            className="h-2 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 transition-[width] duration-500"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
                         {f.detail && (
-                          <p className="mt-0.5 text-xs text-gray-400">{formatDetail(f.detail)}</p>
+                          <p className="mt-1 text-xs text-faint">{formatDetail(f.detail)}</p>
                         )}
                       </li>
                     );
@@ -219,7 +229,7 @@ export default async function LeadDetailPage({
                         href={web.resolved.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-blue-600 hover:underline"
+                        className="text-brand-700 hover:underline"
                       >
                         {web.resolved.url}
                       </a>
@@ -278,7 +288,7 @@ export default async function LeadDetailPage({
                         href={social.fb_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-blue-600 hover:underline"
+                        className="text-brand-700 hover:underline"
                       >
                         Profil
                       </a>
@@ -292,11 +302,14 @@ export default async function LeadDetailPage({
 
           {contact.decision_makers && contact.decision_makers.length > 0 && (
             <Section title="Beslutningstagere">
-              <ul className="space-y-1 text-sm">
+              <ul className="space-y-2 text-sm">
                 {contact.decision_makers.map((dm, i) => (
-                  <li key={`${dm.name}-${i}`} className="flex justify-between gap-4">
-                    <span className="text-gray-900">{dm.name}</span>
-                    <span className="text-gray-500">{dm.role}</span>
+                  <li
+                    key={`${dm.name}-${i}`}
+                    className="flex justify-between gap-4 border-b border-line/60 pb-2 last:border-0 last:pb-0"
+                  >
+                    <span className="font-medium text-ink">{dm.name}</span>
+                    <span className="text-muted">{dm.role}</span>
                   </li>
                 ))}
               </ul>
@@ -307,32 +320,38 @@ export default async function LeadDetailPage({
         <div className="space-y-6">
           <Section title="Kontakt">
             {lead.phone.length > 0 ? (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {lead.phone.map((p) => (
                   <a
                     key={p}
                     href={`tel:${p.replace(/\s/g, "")}`}
-                    className="block text-lg font-semibold text-emerald-700 hover:underline"
+                    className="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-lg font-semibold text-brand-700 transition-colors hover:bg-brand-100"
                   >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path
+                        d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.24 1z"
+                        fill="currentColor"
+                      />
+                    </svg>
                     {p}
                   </a>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">Intet telefonnummer</p>
+              <p className="text-sm text-faint">Intet telefonnummer</p>
             )}
             {lead.website && (
               <a
                 href={lead.website}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 block break-all text-sm text-blue-600 hover:underline"
+                className="mt-2 block break-all text-sm text-brand-700 hover:underline"
               >
                 {lead.website}
               </a>
             )}
-            {lead.email && <p className="mt-1 break-all text-sm text-gray-500">{lead.email}</p>}
-            <p className="mt-3 text-xs text-gray-400">
+            {lead.email && <p className="mt-1 break-all text-sm text-muted">{lead.email}</p>}
+            <p className="mt-3 text-xs text-faint">
               Telefon-først — Markedsføringsloven §10 forbyder kold B2B-email uden samtykke.
             </p>
           </Section>

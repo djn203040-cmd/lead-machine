@@ -5,14 +5,14 @@ type BadgeMeta = { label: string; className: string };
 // website_need ladder. For a website agency, "no/dead/parked/facebook-only/bad"
 // = the best leads, so those get the strong (emerald) tone; modern is muted.
 export const WEBSITE_NEED_META: Record<string, BadgeMeta> = {
-  none: { label: "Ingen hjemmeside", className: "bg-emerald-100 text-emerald-800" },
-  dead: { label: "Dødt domæne", className: "bg-emerald-100 text-emerald-800" },
-  parked: { label: "Parkeret domæne", className: "bg-emerald-100 text-emerald-800" },
-  facebook_only: { label: "Kun Facebook", className: "bg-emerald-100 text-emerald-800" },
-  bad: { label: "Dårlig hjemmeside", className: "bg-amber-100 text-amber-800" },
-  outdated: { label: "Forældet", className: "bg-amber-100 text-amber-800" },
-  modern: { label: "Moderne", className: "bg-gray-100 text-gray-600" },
-  unknown: { label: "Ikke vurderet", className: "bg-gray-100 text-gray-500" },
+  none: { label: "Ingen hjemmeside", className: "chip-brand" },
+  dead: { label: "Dødt domæne", className: "chip-brand" },
+  parked: { label: "Parkeret domæne", className: "chip-brand" },
+  facebook_only: { label: "Kun Facebook", className: "chip-brand" },
+  bad: { label: "Dårlig hjemmeside", className: "chip-amber" },
+  outdated: { label: "Forældet", className: "chip-amber" },
+  modern: { label: "Moderne", className: "chip-neutral" },
+  unknown: { label: "Ikke vurderet", className: "chip-neutral" },
 };
 
 export function websiteNeedMeta(need: string | null | undefined): BadgeMeta {
@@ -38,14 +38,14 @@ export const PIPELINE_STATUSES = [
 export type PipelineStatus = (typeof PIPELINE_STATUSES)[number];
 
 export const PIPELINE_META: Record<PipelineStatus, BadgeMeta> = {
-  new: { label: "Ny", className: "bg-blue-100 text-blue-800" },
-  enriched: { label: "Beriget", className: "bg-indigo-100 text-indigo-800" },
-  qualified: { label: "Kvalificeret", className: "bg-violet-100 text-violet-800" },
-  contacted: { label: "Kontaktet", className: "bg-cyan-100 text-cyan-800" },
-  meeting_booked: { label: "Møde booket", className: "bg-teal-100 text-teal-800" },
-  won: { label: "Vundet", className: "bg-emerald-100 text-emerald-800" },
-  lost: { label: "Tabt", className: "bg-rose-100 text-rose-700" },
-  discarded: { label: "Kasseret", className: "bg-gray-100 text-gray-500" },
+  new: { label: "Ny", className: "chip-info" },
+  enriched: { label: "Beriget", className: "chip-violet" },
+  qualified: { label: "Kvalificeret", className: "chip-violet" },
+  contacted: { label: "Kontaktet", className: "chip-cyan" },
+  meeting_booked: { label: "Møde booket", className: "chip-teal" },
+  won: { label: "Vundet", className: "chip-brand" },
+  lost: { label: "Tabt", className: "chip-rose" },
+  discarded: { label: "Kasseret", className: "chip-neutral" },
 };
 
 export function pipelineMeta(status: string | null | undefined): BadgeMeta {

@@ -16,11 +16,7 @@ export default function SignOutButton() {
   }
 
   return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className="text-sm text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline disabled:opacity-50"
-    >
+    <button onClick={onClick} disabled={loading} className="btn btn-ghost">
       {loading ? "Logger ud…" : "Log ud"}
     </button>
   );

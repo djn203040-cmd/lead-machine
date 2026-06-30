@@ -1,9 +1,22 @@
 import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Lead Machine",
-  description: "Danish local-business lead engine",
+  description: "Find og kvalificér danske virksomheder — klar til outreach.",
 };
 
 export default function RootLayout({
@@ -12,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="da">
-      <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
+    <html lang="da" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="min-h-screen bg-canvas font-sans text-ink antialiased">
         {children}
       </body>
     </html>

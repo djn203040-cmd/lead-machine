@@ -82,87 +82,112 @@ export default async function LeadsPage({
 
   return (
     <div>
-      <div className="mb-4 flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold">Leads</h1>
-        <span className="text-sm text-gray-500">{total} virksomheder</span>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">Leads</h1>
+          <p className="mt-1 text-sm text-muted">
+            Danske virksomheder, scoret og klar til outreach.
+          </p>
+        </div>
+        <span className="chip chip-brand text-[0.8rem]">
+          {total} virksomheder
+        </span>
       </div>
 
       <FilterBar filters={filters} />
 
       {leads.length === 0 ? (
-        <div className="rounded border border-dashed p-12 text-center text-gray-500">
-          Ingen leads matcher filtrene. Kør en søgning for at finde danske virksomheder.
+        <div className="card flex flex-col items-center gap-3 px-6 py-16 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-50 text-brand-700">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path d="m20 20-3.2-3.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </span>
+          <h2 className="text-lg font-semibold text-ink">Ingen leads endnu</h2>
+          <p className="max-w-sm text-sm text-muted">
+            Ingen virksomheder matcher filtrene. Kør en søgning for at finde danske
+            virksomheder, der mangler en ordentlig hjemmeside.
+          </p>
+          <Link href="/leads/new" className="btn btn-primary mt-1">
+            <span className="text-base leading-none">+</span> Find virksomheder
+          </Link>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded border bg-white">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b bg-gray-50 text-left text-gray-500">
-                <th className="px-3 py-2 font-medium">Virksomhed</th>
-                <th className="px-3 py-2 font-medium">Branche</th>
-                <th className="px-3 py-2 font-medium">By</th>
-                <th className="px-3 py-2 font-medium">Ansatte</th>
-                <th className="px-3 py-2 font-medium">Hjemmeside</th>
-                <th className="px-3 py-2 text-right font-medium">Score</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leads.map((l) => (
-                <tr key={l.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/leads/${l.id}`}
-                      className="font-medium text-gray-900 hover:underline"
-                    >
-                      {l.company_name}
-                    </Link>
-                    {l.phone?.[0] ? (
-                      <div className="text-xs text-gray-400">{l.phone[0]}</div>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 text-gray-600">
-                    {l.branche_text ?? groupLabel(l.branchekode) ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 text-gray-600">{l.city ?? "—"}</td>
-                  <td className="px-3 py-2 text-gray-600">
-                    {employeesLabel(l.employees_band, l.employees_exact)}
-                  </td>
-                  <td className="px-3 py-2">
-                    <WebsiteNeedBadge need={l.website_need} />
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <ScoreChip score={l.score} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <PipelineBadge status={l.pipeline_status} />
-                  </td>
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-line bg-canvas/60 text-left text-xs uppercase tracking-wide text-faint">
+                  <th className="px-4 py-3 font-semibold">Virksomhed</th>
+                  <th className="px-4 py-3 font-semibold">Branche</th>
+                  <th className="px-4 py-3 font-semibold">By</th>
+                  <th className="px-4 py-3 font-semibold">Ansatte</th>
+                  <th className="px-4 py-3 font-semibold">Hjemmeside</th>
+                  <th className="px-4 py-3 text-right font-semibold">Score</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {leads.map((l) => (
+                  <tr
+                    key={l.id}
+                    className="border-b border-line/70 transition-colors last:border-0 hover:bg-brand-50/60"
+                  >
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/leads/${l.id}`}
+                        className="font-medium text-ink hover:text-brand-700"
+                      >
+                        {l.company_name}
+                      </Link>
+                      {l.phone?.[0] ? (
+                        <div className="text-xs text-faint">{l.phone[0]}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3 text-muted">
+                      {l.branche_text ?? groupLabel(l.branchekode) ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-muted">{l.city ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted">
+                      {employeesLabel(l.employees_band, l.employees_exact)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <WebsiteNeedBadge need={l.website_need} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <ScoreChip score={l.score} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <PipelineBadge status={l.pipeline_status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-sm">
-          <span className="text-gray-500">
+        <div className="mt-5 flex items-center justify-between text-sm">
+          <span className="text-muted">
             Side {page} af {totalPages}
           </span>
           <div className="flex gap-2">
             {page > 1 ? (
-              <Link href={pageHref(page - 1)} className="rounded border px-3 py-1.5 hover:bg-gray-50">
+              <Link href={pageHref(page - 1)} className="btn btn-secondary">
                 Forrige
               </Link>
             ) : (
-              <span className="rounded border px-3 py-1.5 text-gray-300">Forrige</span>
+              <span className="btn btn-secondary pointer-events-none opacity-45">Forrige</span>
             )}
             {page < totalPages ? (
-              <Link href={pageHref(page + 1)} className="rounded border px-3 py-1.5 hover:bg-gray-50">
+              <Link href={pageHref(page + 1)} className="btn btn-secondary">
                 Næste
               </Link>
             ) : (
-              <span className="rounded border px-3 py-1.5 text-gray-300">Næste</span>
+              <span className="btn btn-secondary pointer-events-none opacity-45">Næste</span>
             )}
           </div>
         </div>

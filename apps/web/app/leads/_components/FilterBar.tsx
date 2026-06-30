@@ -19,7 +19,7 @@ const SCORE_OPTIONS = [
   { value: "25", label: "25+" },
 ];
 
-const selectClass = "rounded border bg-white px-2 py-1.5 text-sm";
+const selectClass = "select w-auto";
 
 export default function FilterBar({ filters }: { filters: LeadFilters }) {
   const router = useRouter();
@@ -42,15 +42,28 @@ export default function FilterBar({ filters }: { filters: LeadFilters }) {
         e.preventDefault();
         submit(e.currentTarget);
       }}
-      className="mb-5 flex flex-wrap items-center gap-2"
+      className="card card-pad mb-6 flex flex-wrap items-center gap-2.5"
     >
-      <input
-        type="search"
-        name="q"
-        defaultValue={filters.q}
-        placeholder="Søg virksomhed…"
-        className="min-w-48 flex-1 rounded border px-3 py-1.5 text-sm"
-      />
+      <div className="relative min-w-48 flex-1">
+        <svg
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden
+        >
+          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+          <path d="m20 20-3.2-3.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <input
+          type="search"
+          name="q"
+          defaultValue={filters.q}
+          placeholder="Søg virksomhed…"
+          className="input pl-9"
+        />
+      </div>
 
       <select
         name="group"
@@ -107,10 +120,7 @@ export default function FilterBar({ filters }: { filters: LeadFilters }) {
         ))}
       </select>
 
-      <button
-        type="submit"
-        className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white"
-      >
+      <button type="submit" className="btn btn-primary">
         Søg
       </button>
     </form>

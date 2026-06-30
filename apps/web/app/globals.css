@@ -1,1 +1,268 @@
 @import "tailwindcss";
+
+/* ============================================================================
+   Lead Machine — design system
+   Light + forest-green premium theme (aligned with sonorousdigital.com).
+   Tokens below become Tailwind utilities: bg-brand, text-ink, border-line, etc.
+   ========================================================================== */
+
+@theme {
+  /* Typography — Geist, injected by next/font as --font-geist-sans */
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    monospace;
+
+  /* Brand — deep forest greens */
+  --color-brand: #1b3d2f;
+  --color-brand-800: #1f4a39;
+  --color-brand-700: #2e6f4e;
+  --color-brand-600: #357a57;
+  --color-brand-500: #3f8c64;
+  --color-brand-100: #dcebe3;
+  --color-brand-50: #eef5f0;
+  --color-sage: #5fae86;
+
+  /* Surfaces */
+  --color-canvas: #f7f7f3;
+  --color-card: #ffffff;
+  --color-line: #e7e5dd;
+  --color-line-strong: #d9d7cd;
+
+  /* Ink */
+  --color-ink: #14201a;
+  --color-muted: #5b665f;
+  --color-faint: #8a938c;
+
+  /* Status tones — calm, desaturated for the warm canvas */
+  --color-info-bg: #e3edf7;
+  --color-info-fg: #2c5378;
+  --color-violet-bg: #ebe7f7;
+  --color-violet-fg: #574a86;
+  --color-cyan-bg: #dcefef;
+  --color-cyan-fg: #1f6f78;
+  --color-teal-bg: #d8f0ea;
+  --color-teal-fg: #1f6f5c;
+  --color-amber-bg: #f7ecd6;
+  --color-amber-fg: #8a6620;
+  --color-rose-bg: #f8e2e2;
+  --color-rose-fg: #a23a3a;
+
+  /* Radii */
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  /* Shadows — soft, layered */
+  --shadow-card: 0 1px 2px rgba(20, 32, 26, 0.04),
+    0 8px 24px -12px rgba(20, 32, 26, 0.12);
+  --shadow-lift: 0 2px 6px rgba(20, 32, 26, 0.06),
+    0 18px 40px -16px rgba(20, 32, 26, 0.22);
+  --shadow-focus: 0 0 0 3px rgba(46, 111, 78, 0.22);
+}
+
+/* ----------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    /* faint green-tinted depth so the canvas never reads as flat white */
+    background-image:
+      radial-gradient(
+        1200px 600px at 100% -10%,
+        rgba(46, 111, 78, 0.07),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 500px at -10% 0%,
+        rgba(95, 174, 134, 0.06),
+        transparent 55%
+      );
+    background-attachment: fixed;
+    color: var(--color-ink);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-100);
+    color: var(--color-brand);
+  }
+
+  /* Consistent focus ring on every interactive element */
+  a,
+  button,
+  input,
+  select,
+  textarea {
+    outline: none;
+  }
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    box-shadow: var(--shadow-focus);
+    border-color: var(--color-brand-600);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Components — reusable building blocks
+   -------------------------------------------------------------------------- */
+@layer components {
+  /* Cards */
+  .card {
+    background-color: var(--color-card);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+  }
+  .card-pad {
+    padding: 1.25rem;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 10px;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.2s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+
+  .btn-primary {
+    color: #fff;
+    background-image: linear-gradient(
+      180deg,
+      var(--color-brand-700),
+      var(--color-brand)
+    );
+    box-shadow:
+      0 1px 2px rgba(20, 32, 26, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lift);
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    color: var(--color-ink);
+    background-color: var(--color-card);
+    border: 1px solid var(--color-line-strong);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--color-brand-500);
+    background-color: var(--color-brand-50);
+  }
+
+  .btn-ghost {
+    color: var(--color-muted);
+    background-color: transparent;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--color-ink);
+    background-color: rgba(20, 32, 26, 0.05);
+  }
+
+  /* Form controls */
+  .input,
+  .select,
+  .textarea {
+    width: 100%;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-line-strong);
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .input::placeholder,
+  .textarea::placeholder {
+    color: var(--color-faint);
+  }
+  .select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b665f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    padding-right: 2rem;
+    cursor: pointer;
+  }
+
+  /* Chips / badges */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    border-radius: 9999px;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+}
+
+/* Status chip palettes (referenced from leadmeta.ts) */
+.chip-brand {
+  background-color: var(--color-brand-100);
+  color: var(--color-brand-800);
+}
+.chip-amber {
+  background-color: var(--color-amber-bg);
+  color: var(--color-amber-fg);
+}
+.chip-info {
+  background-color: var(--color-info-bg);
+  color: var(--color-info-fg);
+}
+.chip-violet {
+  background-color: var(--color-violet-bg);
+  color: var(--color-violet-fg);
+}
+.chip-cyan {
+  background-color: var(--color-cyan-bg);
+  color: var(--color-cyan-fg);
+}
+.chip-teal {
+  background-color: var(--color-teal-bg);
+  color: var(--color-teal-fg);
+}
+.chip-rose {
+  background-color: var(--color-rose-bg);
+  color: var(--color-rose-fg);
+}
+.chip-neutral {
+  background-color: #edece6;
+  color: var(--color-muted);
+}
