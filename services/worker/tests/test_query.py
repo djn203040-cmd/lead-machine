@@ -27,8 +27,14 @@ def test_branchekoder_are_normalized_and_termed() -> None:
 
 def test_default_status_is_active() -> None:
     params = SearchParameters(branchekoder=["960210"])
-    status_clauses = [f for f in _filters(params) if f.get("terms", {}).get(PATH_STATUS)]
-    assert status_clauses[0]["terms"][PATH_STATUS] == list(ACTIVE_STATUSES)
+    # sammensatStatus is analyzed text → matched, not term-filtered.
+    status_clauses = [
+        f
+        for f in _filters(params)
+        if any("match" in s and PATH_STATUS in s["match"] for s in f.get("bool", {}).get("should", []))
+    ]
+    matched = [list(s["match"].values())[0] for s in status_clauses[0]["bool"]["should"]]
+    assert matched == list(ACTIVE_STATUSES)
 
 
 def test_postnumre_and_ranges_combine_into_should() -> None:

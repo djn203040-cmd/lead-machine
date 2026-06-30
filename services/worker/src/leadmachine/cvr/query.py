@@ -109,6 +109,24 @@ def _employee_clause(bands: list[str]) -> dict[str, Any] | None:
     }
 
 
+def _status_clause(statuses: list[str]) -> dict[str, Any] | None:
+    """Match active company statuses.
+
+    ``sammensatStatus`` is an *analyzed text* field in the cvr-permanent index,
+    so a ``terms`` filter (which does not analyze its input) never matches —
+    the active value ``"NORMAL"`` is only reachable via ``match``. We OR a
+    ``match`` per requested status in a ``should`` clause.
+    """
+    if not statuses:
+        return None
+    return {
+        "bool": {
+            "should": [{"match": {PATH_STATUS: s}} for s in statuses],
+            "minimum_should_match": 1,
+        }
+    }
+
+
 def build_es_query(params: SearchParameters) -> dict[str, Any]:
     """Build the Elasticsearch ``query`` body for a search definition."""
     filters: list[dict[str, Any]] = []
@@ -124,8 +142,9 @@ def build_es_query(params: SearchParameters) -> dict[str, Any]:
     if emp is not None:
         filters.append(emp)
 
-    if params.statuses:
-        filters.append({"terms": {PATH_STATUS: params.statuses}})
+    status = _status_clause(params.statuses)
+    if status is not None:
+        filters.append(status)
 
     if not filters:
         return {"match_all": {}}
