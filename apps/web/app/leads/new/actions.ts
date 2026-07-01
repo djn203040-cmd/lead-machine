@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { codesInGroup, GROUPS, type BranchekodeGroup } from "@/lib/branchekoder";
+import {
+  ALL_CODES,
+  GROUPS,
+  groupForCode,
+  normalizeCode,
+} from "@/lib/branchekoder";
 import { cvrCredsFromEnv } from "@/lib/cvr/client";
 import { runDiscovery } from "@/lib/cvr/discover";
 import type { SearchParameters } from "@/lib/cvr/query";
@@ -19,29 +24,49 @@ const EMPLOYEE_BANDS = new Set([
   "ANTAL_500_999", "ANTAL_1000_999999",
 ]);
 
-function parsePostnumre(raw: string): number[] {
-  return raw
-    .split(/[\s,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map(Number)
-    .filter((n) => Number.isInteger(n) && n >= 1000 && n <= 9999);
+function parseInts(values: FormDataEntryValue[], lo: number, hi: number): number[] {
+  const out = new Set<number>();
+  for (const v of values) {
+    const n = Number(String(v).trim());
+    if (Number.isInteger(n) && n >= lo && n <= hi) out.add(n);
+  }
+  return [...out];
+}
+
+/** Human-readable search name from the selected branches + areas. */
+function searchName(codes: string[], postnumre: number[], kommunekoder: number[]): string {
+  const groups = [...new Set(codes.map((c) => groupForCode(c)).filter(Boolean))] as string[];
+  const brancheLabel =
+    groups.length === 0
+      ? `${codes.length} brancher`
+      : groups.length <= 2
+        ? groups.map((g) => GROUPS[g as keyof typeof GROUPS]).join(", ")
+        : `${codes.length} brancher`;
+
+  const areaBits: string[] = [];
+  if (postnumre.length) areaBits.push(`${postnumre.length} postnr.`);
+  if (kommunekoder.length) areaBits.push(`${kommunekoder.length} kommune(r)`);
+  const area = areaBits.join(" + ") || "hele landet";
+
+  return `${brancheLabel} · ${area}`;
 }
 
 export async function discoverAction(
   _prev: DiscoverState,
   formData: FormData,
 ): Promise<DiscoverState> {
-  const group = String(formData.get("group") ?? "") as BranchekodeGroup;
-  const postnrRaw = String(formData.get("postnumre") ?? "");
+  const codes = [
+    ...new Set(
+      formData.getAll("codes").map((c) => normalizeCode(String(c))).filter((c) => ALL_CODES.has(c)),
+    ),
+  ];
+  const postnumre = parseInts(formData.getAll("postnumre"), 1000, 9999);
+  const kommunekoder = parseInts(formData.getAll("kommunekoder"), 1, 999);
   const bands = formData.getAll("bands").map(String).filter((b) => EMPLOYEE_BANDS.has(b));
 
-  if (!group || !(group in GROUPS)) return { error: "Vælg en branche." };
-  const branchekoder = codesInGroup(group);
-  if (!branchekoder.length) return { error: "Ingen branchekoder for den gruppe." };
-
-  const postnumre = parsePostnumre(postnrRaw);
-  if (!postnumre.length) return { error: "Indtast mindst ét gyldigt postnummer (1000–9999)." };
+  if (!codes.length) return { error: "Vælg mindst én branche." };
+  if (!postnumre.length && !kommunekoder.length)
+    return { error: "Vælg mindst ét område (by, kommune eller postnummer)." };
 
   const creds = cvrCredsFromEnv();
   if (!creds) {
@@ -51,8 +76,13 @@ export async function discoverAction(
     };
   }
 
-  const params: SearchParameters = { branchekoder, postnumre, employeeBands: bands };
-  const name = `${GROUPS[group]} · ${postnumre.join(", ")}`;
+  const params: SearchParameters = {
+    branchekoder: codes,
+    postnumre,
+    kommunekoder,
+    employeeBands: bands,
+  };
+  const name = searchName(codes, postnumre, kommunekoder);
 
   try {
     const supabase = await createClient();

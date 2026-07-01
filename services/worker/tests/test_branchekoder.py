@@ -20,7 +20,7 @@ def test_by_code_accepts_dotted_db07() -> None:
     assert frisor is not None
     assert frisor.code == "962100"
     assert frisor.code_db07 == "96.21.00"
-    assert frisor.label_da == "Drift af frisør- og barbersaloner"
+    assert "Fris" in frisor.label_da  # friendly DB25 label, e.g. "Frisører & barbere"
 
 
 def test_normalize_code_strips_dots_and_spaces() -> None:

@@ -8,7 +8,7 @@ export default function NewSearchPage() {
   const configured = cvrCredsFromEnv() !== null;
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-2xl">
       <Link
         href="/leads"
         className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-brand-700"
@@ -19,9 +19,9 @@ export default function NewSearchPage() {
         Find virksomheder
       </h1>
       <p className="mb-6 text-sm text-muted">
-        Søg i CVR efter en branche i et eller flere postnumre. Reklamebeskyttede
-        og inaktive virksomheder frasorteres automatisk. Nye virksomheder uden
-        hjemmeside markeres som de bedste leads.
+        Vælg en eller flere brancher og et område — søg på by, kommune eller
+        region. Reklamebeskyttede og inaktive virksomheder frasorteres
+        automatisk. Nye virksomheder uden hjemmeside markeres som de bedste leads.
       </p>
 
       {!configured && (

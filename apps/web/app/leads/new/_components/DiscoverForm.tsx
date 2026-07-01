@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { GROUP_OPTIONS } from "@/lib/branchekoder";
+import IndustryPicker from "./IndustryPicker";
+import LocationPicker from "./LocationPicker";
 import { discoverAction, type DiscoverState } from "../actions";
 
 const BANDS: { value: string; label: string }[] = [
@@ -11,32 +12,17 @@ const BANDS: { value: string; label: string }[] = [
   { value: "ANTAL_5_9", label: "5–9" },
   { value: "ANTAL_10_19", label: "10–19" },
   { value: "ANTAL_20_49", label: "20–49" },
+  { value: "ANTAL_50_99", label: "50–99" },
 ];
 
 export default function DiscoverForm() {
   const [state, action, pending] = useActionState<DiscoverState, FormData>(discoverAction, {});
 
   return (
-    <form action={action} className="space-y-5">
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-ink">Branche</label>
-        <select name="group" required defaultValue="" className="select">
-          <option value="" disabled>
-            Vælg branche…
-          </option>
-          {GROUP_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+    <form action={action} className="space-y-6">
+      <IndustryPicker />
 
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-ink">Postnummer(e)</label>
-        <input name="postnumre" required placeholder="f.eks. 2200 8000 9000" className="input" />
-        <p className="mt-1.5 text-xs text-faint">Adskil flere med mellemrum eller komma.</p>
-      </div>
+      <LocationPicker />
 
       <div>
         <span className="mb-2 block text-sm font-medium text-ink">Antal ansatte (valgfrit)</span>

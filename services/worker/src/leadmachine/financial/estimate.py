@@ -32,24 +32,41 @@ BENCHMARKS: dict[str, Benchmark] = {
     "beauty_wellness": Benchmark("beauty_wellness", 500_000, 0.80),
     "health": Benchmark("health", 1_100_000, 0.85),
     "trades": Benchmark("trades", 1_000_000, 0.45),
+    "cleaning": Benchmark("cleaning", 500_000, 0.55),
     "auto": Benchmark("auto", 1_800_000, 0.30),
+    "transport": Benchmark("transport", 1_400_000, 0.35),
     "retail": Benchmark("retail", 1_600_000, 0.30),
     "professional": Benchmark("professional", 1_300_000, 0.80),
+    "finance": Benchmark("finance", 2_000_000, 0.85),
+    "realestate": Benchmark("realestate", 1_500_000, 0.70),
+    "it_media": Benchmark("it_media", 1_200_000, 0.75),
+    "education": Benchmark("education", 500_000, 0.75),
+    "hospitality": Benchmark("hospitality", 700_000, 0.60),
     "leisure": Benchmark("leisure", 600_000, 0.75),
+    "business_services": Benchmark("business_services", 900_000, 0.70),
 }
 DEFAULT_BENCHMARK = Benchmark("default", 1_000_000, 0.50)
 
-# DB07 2-digit division -> catalog group, for codes outside our curated catalog.
+# DB25 2-digit division -> catalog group, for codes outside our curated catalog.
 _PREFIX_GROUP: dict[str, str] = {
-    "55": "food_drink", "56": "food_drink",
+    "10": "food_drink", "11": "food_drink", "55": "hospitality", "56": "food_drink",
     "96": "beauty_wellness",
     "75": "health", "86": "health",
-    "41": "trades", "42": "trades", "43": "trades", "81": "trades",
-    "45": "auto",
+    "41": "trades", "42": "trades", "43": "trades",
+    "81": "cleaning",
+    "45": "auto", "95": "auto",
+    "49": "transport", "50": "transport", "52": "transport", "53": "transport",
     "47": "retail",
-    "68": "professional", "69": "professional", "70": "professional",
+    "69": "professional", "70": "professional", "71": "professional",
     "73": "professional", "74": "professional",
-    "93": "leisure",
+    "64": "finance", "65": "finance", "66": "finance",
+    "68": "realestate",
+    "58": "it_media", "59": "it_media", "62": "it_media", "63": "it_media",
+    "85": "education",
+    "79": "hospitality",
+    "90": "leisure", "91": "leisure", "93": "leisure",
+    "77": "business_services", "78": "business_services",
+    "80": "business_services", "82": "business_services",
 }
 
 # Approximate employee count from an interval band (midpoint).

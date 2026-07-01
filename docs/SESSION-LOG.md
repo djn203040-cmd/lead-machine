@@ -8,7 +8,7 @@
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
 - **State:** V1 · **M0–M7 all on `main`** · **FULL PIPELINE PROVEN LIVE (Session 7, 2026-06-30)** — ran `discover → qualify → enrich-financial → score → angles` against real CVR creds + live Supabase + real `ANTHROPIC_API_KEY`. Migration `0002_compliance.sql` is **already applied** to the live DB. The index is **LIVE current data** (not a 2022 snapshot — that's just a stale alias label). **Remaining = production deploy (Vercel/Fly) + Robinson list + publish privacy notice + close epics.**
-- **Branch:** `main`. **Session 7 changes are UNCOMMITTED in the working tree** (6 files — see below). Commit/push when ready.
+- **Branch:** `main`. Session 7 + 9 changes are **committed & pushed to `main`** (Session 9, 2026-07-01). Working tree clean.
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude (`claude-opus-4-8`) for Danish angles.
 - **Local dev is set up:** `uv` installed; `services/worker/.env` + `apps/web/.env.local` filled with real creds (both gitignored). `pnpm install` + `uv sync` done. `pnpm --filter web dev` boots against live Supabase. 165 worker tests green, ruff clean, web builds.
 
@@ -18,12 +18,12 @@
 
 ### ▶ Next task — finish shipping M7 ([#8](https://github.com/djn203040-cmd/lead-machine/issues/8))
 The live E2E pass is **done** (Session 7). What remains is production hosting + paperwork:
-- **Commit & push** the 6 Session-7 files to `main`.
+- ~~**Commit & push** the Session-7 files to `main`.~~ **DONE (Session 9)** — pushed alongside the Find virksomheder UX overhaul.
 - **Deploy** per [`docs/DEPLOY.md`](DEPLOY.md): web→Vercel, worker→Fly.io (Dockerfile + fly.toml ready), set the env matrix. (Migration already applied.)
 - **Provision the Robinson list** on the worker host, set `ROBINSON_LIST_PATH`, run `leadmachine screen` (warns loudly if the list is empty).
 - **Fill the `[…]` placeholders** in `docs/compliance/LIA.md` + `privacy-notice.md` (controller/contact/URL) and **publish** the privacy notice.
 - **Close the M1–M6 epics** (#2/#3/#4/#5/#6/#7) — acceptance now confirmed on real data.
-- **Optional cleanup:** the 99 restaurant leads (8000) are discovered but not yet qualified/enriched/scored/angled — run the rest if you want them complete.
+- ~~**Optional cleanup:** the 99 restaurant leads (8000) are discovered but not yet qualified/enriched/scored/angled.~~ **DONE (Session 8, 2026-06-30):** ran qualify→enrich→score→angles on them; all 147 leads now fully processed + angled (0 missing).
 - **Deferred (V1 follow-ups or V2):** search-builder UI, lead assignment/archive UI, on-demand "generér vinkel" button. **V2:** reviews/reputation + outreach automation (#9).
 - **Tuning idea (declined this session):** tune the catalog to the user's real target industries + surface contactable-yield % per vertical.
 
@@ -157,6 +157,26 @@ uv run leadmachine hello               # smoke test
 ---
 
 ## Session history
+
+### Session 9 — 2026-07-01  (Find virksomheder UX overhaul — industries + locations)
+Rebuilt the **Find virksomheder** discovery form (`apps/web/app/leads/new`) to be far easier and more intuitive, per the user's ask for "a lot more industries" + an easier way to pick areas.
+- **Industries 37 → 170, searchable & grouped.** Replaced the single-group `<select>` with a searchable, collapsible [`IndustryPicker`](../apps/web/app/leads/new/_components/IndustryPicker.tsx) (type to filter; tick a whole group or individual industries) across **16 categories**.
+- **Authoritative DB25 catalog.** The live CVR register uses **Dansk Branchekode DB25** (Danmarks Statistik, eff. 2025-01-01), *not* DB07. Downloaded the official DB25 CSV → 738 leaf codes → curated 170 SMB-relevant ones, **every code validated to exist in DB25**. Fixed legacy/wrong codes carried over from Session 7's live-audit (dropped `561020`/`451120`/`477810`/`562900` which aren't in DB25; `741100` "Advokat" was wrong → law firms are `691000`).
+- **Location: free-text postnr → city/kommune/region autocomplete.** New [`LocationPicker`](../apps/web/app/leads/new/_components/LocationPicker.tsx) with chips; CVR can only filter `postnummer` + `kommuneKode` (not city name), so a city resolves to its postnumre and kommune/region to kommunekoder. Geo data (5 regions→98 kommuner→1,089 postnumre, 32 KB) from DAWA/dataforsyningen.dk → `apps/web/lib/geo/denmark.geo.json` + `lib/geo.ts`. Manual postal entry kept as a fallback. Wired `kommunekoder` through `actions.ts` (the query builder already supported it — just wasn't exposed).
+- **Worker kept in sync:** regenerated `cvr/branchekoder.py`, added benchmarks + prefix mappings for the new group keys in `financial/estimate.py`. **172 worker tests green; web tsc + build + lint green.**
+- **Reproducible pipeline committed:** `scripts/catalog/` (gen_catalog.js + db25_leaf_codes.json + gen_geo.js + README) so both datasets can be regenerated.
+- **Env limitation found:** the live CVR ES endpoint (`distribution.virk.dk`) is **TCP-unreachable from this machine/sandbox** (DAWA + dst.dk work) — could not aggregate the live register here; built the catalog from the official DST DB25 CSV instead. Codes are standard-correct but per-industry live yield wasn't verifiable from here.
+- **Note:** this push also carries the previously-uncommitted **Session 7** fix (`cvr/query.py` status-filter) that had never been committed.
+- **Stopped at:** committed + pushed to `main`. Remaining M7 ship steps unchanged (deploy, Robinson list, publish privacy notice, close epics).
+
+### Session 8 — 2026-06-30  (finish the 99 restaurant leads)
+Ran the rest of the pipeline on the 99 discovered-only restaurant leads (561110, Aarhus 8000) so every lead in the DB is complete. All against live creds from local dev; all stages logged to `jobs`.
+- **qualify** (99 unknown): 90 `none` (no website) · 1 `dead` · 8 `modern`. PSI skipped (no `PAGESPEED_API_KEY`).
+- **enrich-financial** (ran over all 147): 78 real annual reports · 93 revenue estimates · 82 CVR contacts · 0 errors.
+- **score** (147): all scored, 0 gated. Top restaurants ~81–83 (e.g. Kakurega ApS 83, Bistro Solera 83 — all no-website ApS in Aarhus C).
+- **angles**: needed two passes — `--limit 120` only fetched 120 of 147 rows before the only-missing filter, leaving 27 uncovered; re-ran `--limit 200` → 27 more. **Final: 147/147 leads angled, 0 missing.** Sampled output is factual + neighborhood-aware + phone-first (verified Kakurega's opener/angle).
+- **Note for next time:** `angles`/`qualify` apply their limit *before* the only-missing/only-unknown filter, so set `--limit ≥ total leads` to guarantee full coverage in one pass.
+- **Stopped at:** all 147 leads fully processed. Remaining M7 ship steps unchanged (deploy to Vercel/Fly, Robinson list, publish privacy notice, close M1–M6 epics) — see "▶ Next task" at top.
 
 ### Session 1 — 2026-06-22
 - Researched the Danish lead-gen landscape (CVR/XBRL, employee data, §10/GDPR, Scrapling vs Apify/Outscraper/SerpAPI/Places, website-quality scoring, Trustpilot, Facebook, contact enrichment) → [`RESEARCH-lead-qualification-2026.md`](../RESEARCH-lead-qualification-2026.md).
