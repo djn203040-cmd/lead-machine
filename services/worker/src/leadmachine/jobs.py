@@ -29,6 +29,7 @@ JOB_TYPES = {
     "score": "score",
     "angles": "angle",
     "screen": "robinson",
+    "enrich-queued": "enrich_queued",
 }
 
 

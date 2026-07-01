@@ -1,4 +1,4 @@
-import { pipelineMeta, websiteNeedMeta } from "@/lib/leadmeta";
+import { enrichmentMeta, pipelineMeta, websiteNeedMeta } from "@/lib/leadmeta";
 
 function Badge({ label, className }: { label: string; className: string }) {
   return <span className={`chip ${className}`}>{label}</span>;
@@ -11,6 +11,11 @@ export function WebsiteNeedBadge({ need }: { need: string | null | undefined }) 
 
 export function PipelineBadge({ status }: { status: string | null | undefined }) {
   const meta = pipelineMeta(status);
+  return <Badge label={meta.label} className={meta.className} />;
+}
+
+export function EnrichmentBadge({ status }: { status: string | null | undefined }) {
+  const meta = enrichmentMeta(status);
   return <Badge label={meta.label} className={meta.className} />;
 }
 

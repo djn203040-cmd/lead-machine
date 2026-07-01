@@ -107,17 +107,34 @@ Then open `/leads` in the dashboard — ranked, suppressed leads hidden, each wi
 an explainable score and a phone-first angle. That run is the **M1–M6 acceptance
 pass**; close #2/#3/#4/#5/#6/#7 once confirmed on real data.
 
-## 6. Scheduling
+## 6. Enrichment queue (web-driven) + scheduling
 
-Each command is idempotent (CVR# dedup; `--only-*` flags skip done work), so a
-nightly chain is safe. Options:
+Discovery (web **or** CLI) inserts raw leads as `enrichment_status='pending'`.
+The web app's "find virksomheder" flow then prompts the user **"Berig N nye
+leads?"**:
 
-- **Fly Machines schedule** — a scheduled machine that runs the chain, or
-  `fly machine exec` from a cron.
-- **GitHub Actions cron** — a scheduled workflow that `fly ssh console -C`'s each
-  step (store Fly + Supabase tokens as repo secrets).
+- **Ja** → leads flip to `queued`.
+- **Nej** → leads flip to `skipped` (kept, shown under the "Ikke beriget" tab; a
+  per-row **Berig** button can re-queue them later).
 
-Keep `screen` **before** any step that feeds outreach.
+The worker's **`enrich-queued`** orchestrator drains the queue: it marks the
+batch `enriching`, runs qualify → enrich-financial → score → angles scoped to
+exactly those leads, then flips them to `enriched` (or `failed`, safe to
+re-queue). Only `enriched` leads appear under the list's default "Beriget" tab.
+
+This is wired as a **GitHub Actions cron**
+([`.github/workflows/enrich-queued.yml`](../.github/workflows/enrich-queued.yml)),
+every 15 min, running `enrich-queued` then `screen`. One-time setup:
+
+```bash
+fly tokens create deploy -a lead-machine-worker   # add as repo secret FLY_API_TOKEN
+```
+
+Each command is idempotent (CVR# dedup; `enrichment_status` gating; `--only-*`
+flags skip done work), so runs may overlap safely — `enriching` leads aren't
+re-picked. Keep `screen` **before** any step that feeds outreach. (Alternative:
+a Fly Machines scheduled machine / `fly machine exec` cron running the same
+commands.)
 
 ## 7. Observability & runbook
 

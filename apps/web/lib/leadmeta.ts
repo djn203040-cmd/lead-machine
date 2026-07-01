@@ -58,6 +58,32 @@ export function isPipelineStatus(value: string): value is PipelineStatus {
   return (PIPELINE_STATUSES as readonly string[]).includes(value);
 }
 
+// enrichment_status (matches the leads CHECK constraint). Drives the
+// "Beriget / Ikke beriget" split on the leads list.
+export const ENRICHMENT_STATUSES = [
+  "pending",
+  "queued",
+  "enriching",
+  "enriched",
+  "skipped",
+  "failed",
+] as const;
+
+export type EnrichmentStatus = (typeof ENRICHMENT_STATUSES)[number];
+
+export const ENRICHMENT_META: Record<EnrichmentStatus, BadgeMeta> = {
+  pending: { label: "Afventer", className: "chip-neutral" },
+  queued: { label: "I kø", className: "chip-info" },
+  enriching: { label: "Beriger…", className: "chip-cyan" },
+  enriched: { label: "Beriget", className: "chip-brand" },
+  skipped: { label: "Fravalgt", className: "chip-neutral" },
+  failed: { label: "Fejlede", className: "chip-rose" },
+};
+
+export function enrichmentMeta(status: string | null | undefined): BadgeMeta {
+  return ENRICHMENT_META[(status ?? "pending") as EnrichmentStatus] ?? ENRICHMENT_META.pending;
+}
+
 // --- formatters ------------------------------------------------------------
 const DKK = new Intl.NumberFormat("da-DK", {
   style: "currency",

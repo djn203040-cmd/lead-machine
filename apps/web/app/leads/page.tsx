@@ -3,7 +3,8 @@ import type { Tables } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { codesInGroup, groupLabel } from "@/lib/branchekoder";
 import { employeesLabel } from "@/lib/leadmeta";
-import { PipelineBadge, ScoreChip, WebsiteNeedBadge } from "./_components/Badge";
+import { EnrichmentBadge, PipelineBadge, ScoreChip, WebsiteNeedBadge } from "./_components/Badge";
+import EnrichButton from "./_components/EnrichButton";
 import FilterBar, { type LeadFilters } from "./_components/FilterBar";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ type LeadRow = Pick<
   | "website_need"
   | "score"
   | "pipeline_status"
+  | "enrichment_status"
   | "phone"
 >;
 
@@ -35,12 +37,14 @@ export default async function LeadsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
+  const view = first(sp.view) === "not_enriched" ? "not_enriched" : "enriched";
   const filters: LeadFilters = {
     q: first(sp.q),
     group: first(sp.group),
     need: first(sp.need),
     status: first(sp.status),
     minScore: first(sp.minScore),
+    view,
   };
   const page = Math.max(1, Number.parseInt(first(sp.page), 10) || 1);
   const from = (page - 1) * PAGE_SIZE;
@@ -49,11 +53,17 @@ export default async function LeadsPage({
   let query = supabase
     .from("leads")
     .select(
-      "id, company_name, city, branche_text, branchekode, employees_band, employees_exact, website_need, score, pipeline_status, phone",
+      "id, company_name, city, branche_text, branchekode, employees_band, employees_exact, website_need, score, pipeline_status, enrichment_status, phone",
       { count: "exact" },
     )
     .eq("is_archived", false)
     .eq("suppressed", false); // Robinson-listed / suppressed leads are never shown for outreach
+
+  // Split enriched leads (default, outreach-ready) from everything else.
+  query =
+    view === "enriched"
+      ? query.eq("enrichment_status", "enriched")
+      : query.neq("enrichment_status", "enriched");
 
   if (filters.q) query = query.ilike("company_name", `%${filters.q}%`);
   if (filters.need) query = query.eq("website_need", filters.need);
@@ -62,23 +72,42 @@ export default async function LeadsPage({
   const min = Number.parseInt(filters.minScore, 10);
   if (!Number.isNaN(min)) query = query.gte("score", min);
 
-  const { data, count } = await query
-    .order("score", { ascending: false, nullsFirst: false })
-    .range(from, from + PAGE_SIZE - 1)
-    .returns<LeadRow[]>();
+  // Enriched leads rank by score; un-enriched have none, so show newest first.
+  query =
+    view === "enriched"
+      ? query.order("score", { ascending: false, nullsFirst: false })
+      : query.order("created_at", { ascending: false });
+
+  const { data, count } = await query.range(from, from + PAGE_SIZE - 1).returns<LeadRow[]>();
 
   const leads = data ?? [];
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // Filter/pagination params, keeping `view` only when it's the non-default tab.
   const baseParams = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) if (value) baseParams.set(key, value);
+  for (const [key, value] of Object.entries(filters)) {
+    if (!value || (key === "view" && value === "enriched")) continue;
+    baseParams.set(key, value);
+  }
   const pageHref = (p: number) => {
     const params = new URLSearchParams(baseParams);
     if (p > 1) params.set("page", String(p));
     const qs = params.toString();
     return qs ? `/leads?${qs}` : "/leads";
   };
+  const viewHref = (v: "enriched" | "not_enriched") => {
+    const params = new URLSearchParams(baseParams);
+    params.delete("page");
+    if (v === "not_enriched") params.set("view", v);
+    else params.delete("view");
+    const qs = params.toString();
+    return qs ? `/leads?${qs}` : "/leads";
+  };
+  const tabClass = (active: boolean) =>
+    `rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+      active ? "bg-brand-600 text-white shadow-sm" : "text-muted hover:text-ink"
+    }`;
 
   return (
     <div>
@@ -92,6 +121,15 @@ export default async function LeadsPage({
         <span className="chip chip-brand text-[0.8rem]">
           {total} virksomheder
         </span>
+      </div>
+
+      <div className="mb-5 inline-flex gap-1 rounded-xl border border-line bg-card p-1">
+        <Link href={viewHref("enriched")} className={tabClass(view === "enriched")}>
+          Beriget
+        </Link>
+        <Link href={viewHref("not_enriched")} className={tabClass(view === "not_enriched")}>
+          Ikke beriget
+        </Link>
       </div>
 
       <FilterBar filters={filters} />
@@ -159,7 +197,14 @@ export default async function LeadsPage({
                       <ScoreChip score={l.score} />
                     </td>
                     <td className="px-4 py-3">
-                      <PipelineBadge status={l.pipeline_status} />
+                      {view === "enriched" ? (
+                        <PipelineBadge status={l.pipeline_status} />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <EnrichmentBadge status={l.enrichment_status} />
+                          <EnrichButton leadId={l.id} status={l.enrichment_status} />
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

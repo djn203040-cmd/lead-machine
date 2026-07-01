@@ -10,6 +10,7 @@ export type LeadFilters = {
   need: string;
   status: string;
   minScore: string;
+  view: string;
 };
 
 const SCORE_OPTIONS = [
@@ -44,6 +45,9 @@ export default function FilterBar({ filters }: { filters: LeadFilters }) {
       }}
       className="card card-pad mb-6 flex flex-wrap items-center gap-2.5"
     >
+      {/* Keep the active Beriget/Ikke-beriget tab when filters change. */}
+      <input type="hidden" name="view" value={filters.view} />
+
       <div className="relative min-w-48 flex-1">
         <svg
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"

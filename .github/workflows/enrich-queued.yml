@@ -1,0 +1,30 @@
+# Drives the enrichment queue: every 15 minutes, run the worker's
+# `enrich-queued` orchestrator (qualify → financial → score → angles over leads
+# the user opted in from the web app), then the Robinson compliance screen.
+#
+# Requires repo secret FLY_API_TOKEN (`fly tokens create deploy -a lead-machine-worker`).
+# The worker machine is always-on (sleep infinity), so `ssh console -C` lands in it.
+name: Enrich queued leads
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # every 15 min (UTC)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+# Don't stack runs if one is slow (heavy XBRL/Claude batches).
+concurrency:
+  group: enrich-queued
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: lead-machine-worker
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Enrich opted-in leads
+        run: flyctl ssh console -a "$FLY_APP" -C "leadmachine enrich-queued --limit 200"
+      - name: Robinson compliance screen
+        run: flyctl ssh console -a "$FLY_APP" -C "leadmachine screen"

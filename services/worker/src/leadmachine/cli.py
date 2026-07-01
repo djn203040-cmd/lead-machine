@@ -1,5 +1,4 @@
 import json
-from typing import Any
 
 import typer
 
@@ -97,43 +96,12 @@ def enrich_financial(
     """Attach XBRL financials + revenue estimate + CVR contacts to leads."""
     from .config import settings
     from .db import get_client
-    from .financial import (
-        FinancialClient,
-        SupabaseFinancialWriter,
-        run_financial_enrichment,
-    )
-    from .financial.models import LeadToEnrich
     from .jobs import JobRun
+    from .pipeline import enrich_financial_leads
 
     db = get_client()
-    res = (
-        db.table("leads")
-        .select("id,cvr_number,branchekode,employees_exact,employees_band,lead_enrichment(cvr)")
-        .not_.is_("cvr_number", "null")
-        .limit(limit)
-        .execute()
-    )
-
-    leads = []
-    for row in res.data or []:
-        enr = row.get("lead_enrichment")
-        if isinstance(enr, list):
-            enr = enr[0] if enr else None
-        leads.append(
-            LeadToEnrich(
-                lead_id=row["id"],
-                cvr_number=row["cvr_number"],
-                branchekode=row.get("branchekode"),
-                employees_exact=row.get("employees_exact"),
-                employees_band=row.get("employees_band"),
-                raw_cvr=(enr or {}).get("cvr") if enr else None,
-            )
-        )
-
-    writer = SupabaseFinancialWriter(db)
     with JobRun(db, "enrich-financial", payload={"limit": limit}) as job:
-        with FinancialClient.from_settings(settings) as client:
-            stats = run_financial_enrichment(leads, client, writer)
+        stats = enrich_financial_leads(db, settings, limit=limit)
         job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))
@@ -147,37 +115,12 @@ def qualify(
     """Classify each lead's website_need (no/dead/parked/facebook/bad/...)."""
     from .config import settings
     from .db import get_client
-    from .website import (
-        DnsResolver,
-        HttpxFetcher,
-        PageSpeedClient,
-        SupabaseWebsiteWriter,
-        WebsiteDeps,
-        run_qualification,
-    )
-    from .website.models import LeadToQualify
     from .jobs import JobRun
+    from .pipeline import qualify_leads
 
     db = get_client()
-    query = db.table("leads").select("id,website,company_name").not_.is_("cvr_number", "null")
-    if only_unknown:
-        query = query.eq("website_need", "unknown")
-    res = query.limit(limit).execute()
-    leads = [
-        LeadToQualify(lead_id=r["id"], website=r.get("website"), company_name=r.get("company_name"))
-        for r in (res.data or [])
-    ]
-
-    psi = PageSpeedClient.from_settings(settings) if settings.pagespeed_api_key else None
-    fetcher = HttpxFetcher()
     with JobRun(db, "qualify", payload={"limit": limit, "only_unknown": only_unknown}) as job:
-        try:
-            deps = WebsiteDeps(fetcher=fetcher, resolver=DnsResolver(), pagespeed=psi)
-            stats = run_qualification(leads, deps, SupabaseWebsiteWriter(db))
-        finally:
-            fetcher.close()
-            if psi is not None:
-                psi.close()
+        stats = qualify_leads(db, settings, limit=limit, only_unknown=only_unknown)
         job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))
@@ -191,48 +134,16 @@ def score(
     ),
 ) -> None:
     """Compute the 0–100 website-selling score + ranked breakdown for each lead."""
+    from .config import settings
     from .db import get_client
     from .jobs import JobRun
-    from .scoring import LeadToScore, SupabaseScoreWriter, Weights, run_scoring
+    from .pipeline import score_leads
 
     db = get_client()
-
-    criteria = db.table("scoring_criteria").select("key,weight,config,is_active").execute()
-    weights = Weights.from_criteria(criteria.data or [])
-
-    query = db.table("leads").select(
-        "id,website_need,branchekode,employees_band,employees_exact,founded_at,"
-        "cvr_status,reklamebeskyttet,lead_enrichment(website,social,financial)"
-    )
-    if only_qualified:
-        query = query.neq("website_need", "unknown")
-    res = query.limit(limit).execute()
-
-    leads = []
-    for row in res.data or []:
-        enr = row.get("lead_enrichment")
-        if isinstance(enr, list):
-            enr = enr[0] if enr else None
-        enr = enr or {}
-        leads.append(
-            LeadToScore(
-                lead_id=row["id"],
-                website_need=row.get("website_need") or "unknown",
-                branchekode=row.get("branchekode"),
-                employees_band=row.get("employees_band"),
-                employees_exact=row.get("employees_exact"),
-                founded_at=row.get("founded_at"),
-                cvr_status=row.get("cvr_status"),
-                reklamebeskyttet=bool(row.get("reklamebeskyttet")),
-                website=enr.get("website") or {},
-                social=enr.get("social") or {},
-                financial=enr.get("financial") or {},
-            )
-        )
-
     with JobRun(db, "score", payload={"limit": limit, "only_qualified": only_qualified}) as job:
-        stats = run_scoring(leads, SupabaseScoreWriter(db), weights=weights)
+        stats = score_leads(db, settings, limit=limit, only_qualified=only_qualified)
         job.result = stats.as_dict()
+
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
 
@@ -244,57 +155,40 @@ def angles(
     ),
 ) -> None:
     """Generate Danish phone-call sales angles with Claude (requires ANTHROPIC_API_KEY)."""
-    from .angles import ClaudeAnglesClient, SupabaseAngleWriter, run_angles
-    from .angles.models import LeadForAngle
     from .config import settings
     from .db import get_client
-    from .financial.estimate import band_midpoint
     from .jobs import JobRun
+    from .pipeline import generate_angles
 
     db = get_client()
-    res = (
-        db.table("leads")
-        .select(
-            "id,company_name,city,branche_text,website_need,employees_band,employees_exact,"
-            "score,lead_enrichment(website,social,financial),lead_scores(breakdown),"
-            "lead_angles(lead_id)"
-        )
-        .neq("website_need", "unknown")
-        .limit(limit)
-        .execute()
-    )
-
-    def _one(value: Any) -> Any:
-        return (value[0] if value else None) if isinstance(value, list) else value
-
-    leads = []
-    for row in res.data or []:
-        if only_missing and _one(row.get("lead_angles")):
-            continue
-        enr = _one(row.get("lead_enrichment")) or {}
-        scores = _one(row.get("lead_scores")) or {}
-        leads.append(
-            LeadForAngle(
-                lead_id=row["id"],
-                company_name=row["company_name"],
-                city=row.get("city"),
-                branche_text=row.get("branche_text"),
-                website_need=row.get("website_need") or "unknown",
-                employees=row.get("employees_exact") or band_midpoint(row.get("employees_band")),
-                score=row.get("score"),
-                website=enr.get("website") or {},
-                financial=enr.get("financial") or {},
-                social=enr.get("social") or {},
-                score_breakdown=scores.get("breakdown") or {},
-            )
-        )
-
     with JobRun(db, "angles", payload={"limit": limit, "only_missing": only_missing}) as job:
-        with ClaudeAnglesClient.from_settings(settings) as client:
-            stats = run_angles(leads, client, SupabaseAngleWriter(db))
+        stats = generate_angles(db, settings, limit=limit, only_missing=only_missing)
         job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))
+
+
+@app.command(name="enrich-queued")
+def enrich_queued_cmd(
+    limit: int = typer.Option(200, help="Max queued leads to enrich in this run."),
+) -> None:
+    """Enrich leads the user opted in (enrichment_status='queued').
+
+    Runs the full pipeline — qualify → enrich-financial → score → angles —
+    scoped to exactly the queued set, then flips them to 'enriched'. Intended to
+    run on a schedule so newly discovered, opted-in leads enrich themselves.
+    """
+    from .config import settings
+    from .db import get_client
+    from .jobs import JobRun
+    from .pipeline import enrich_queued
+
+    db = get_client()
+    with JobRun(db, "enrich-queued", payload={"limit": limit}) as job:
+        result = enrich_queued(db, settings, limit=limit)
+        job.result = result
+
+    typer.echo(json.dumps(result, indent=2))
 
 
 @app.command()

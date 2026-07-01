@@ -267,6 +267,7 @@ export type Database = {
           email: string | null
           employees_band: string | null
           employees_exact: number | null
+          enrichment_status: string
           founded_at: string | null
           id: string
           is_archived: boolean
@@ -299,6 +300,7 @@ export type Database = {
           email?: string | null
           employees_band?: string | null
           employees_exact?: number | null
+          enrichment_status?: string
           founded_at?: string | null
           id?: string
           is_archived?: boolean
@@ -331,6 +333,7 @@ export type Database = {
           email?: string | null
           employees_band?: string | null
           employees_exact?: number | null
+          enrichment_status?: string
           founded_at?: string | null
           id?: string
           is_archived?: boolean

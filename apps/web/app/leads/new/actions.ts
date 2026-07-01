@@ -16,6 +16,8 @@ export type DiscoverState = {
   ok?: boolean;
   error?: string;
   stats?: { seen: number; upserted: number; suppressed: number };
+  // New/undecided leads from this run, offered for enrichment via the prompt.
+  pendingLeadIds?: string[];
 };
 
 const EMPLOYEE_BANDS = new Set([
@@ -95,6 +97,7 @@ export async function discoverAction(
         upserted: stats.upserted,
         suppressed: stats.suppressedReklame + stats.suppressedInactive,
       },
+      pendingLeadIds: stats.pendingLeadIds,
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Discovery mislykkedes." };

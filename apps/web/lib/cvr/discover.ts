@@ -19,6 +19,9 @@ export type DiscoveryStats = {
   suppressedReklame: number;
   suppressedInactive: number;
   errors: number;
+  // Leads from this run still awaiting an enrich? decision (brand-new inserts +
+  // any re-seen leads never decided on). Drives the post-discovery prompt.
+  pendingLeadIds: string[];
 };
 
 export async function runDiscovery(
@@ -34,6 +37,7 @@ export async function runDiscovery(
     suppressedReklame: 0,
     suppressedInactive: 0,
     errors: 0,
+    pendingLeadIds: [],
   };
   if (!creds) throw new Error("CVR credentials are not configured.");
 
@@ -84,11 +88,16 @@ export async function runDiscovery(
     const { data: upserted, error } = await supabase
       .from("leads")
       .upsert(rows as never, { onConflict: "cvr_number" })
-      .select("id, cvr_number")
-      .returns<{ id: string; cvr_number: string }[]>();
+      .select("id, cvr_number, enrichment_status")
+      .returns<{ id: string; cvr_number: string; enrichment_status: string }[]>();
     if (error) throw new Error(error.message);
 
     stats.upserted = upserted?.length ?? 0;
+    // `enrichment_status` is only defaulted on insert; re-seen leads keep their
+    // prior decision, so "still pending" == new/undecided leads to prompt about.
+    stats.pendingLeadIds = (upserted ?? [])
+      .filter((u) => u.enrichment_status === "pending")
+      .map((u) => u.id);
 
     // Mirror the raw CVR payload into lead_enrichment.cvr (batch upsert).
     const enrichRows: TablesInsert<"lead_enrichment">[] = [];
