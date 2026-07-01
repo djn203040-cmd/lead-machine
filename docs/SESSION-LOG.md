@@ -167,7 +167,13 @@ Rebuilt the **Find virksomheder** discovery form (`apps/web/app/leads/new`) to b
 - **Reproducible pipeline committed:** `scripts/catalog/` (gen_catalog.js + db25_leaf_codes.json + gen_geo.js + README) so both datasets can be regenerated.
 - **Env limitation found:** the live CVR ES endpoint (`distribution.virk.dk`) is **TCP-unreachable from this machine/sandbox** (DAWA + dst.dk work) — could not aggregate the live register here; built the catalog from the official DST DB25 CSV instead. Codes are standard-correct but per-industry live yield wasn't verifiable from here.
 - **Note:** this push also carries the previously-uncommitted **Session 7** fix (`cvr/query.py` status-filter) that had never been committed.
-- **Stopped at:** committed + pushed to `main`. Remaining M7 ship steps unchanged (deploy, Robinson list, publish privacy notice, close epics).
+
+**Then wired up CVR access for the app (was showing "CVR-adgang er ikke konfigureret"):** the web app reads its *own* env, not `services/worker/.env`.
+- **Local:** added `CVR_ES_USER` / `CVR_ES_PASSWORD` / `CVR_ES_URL` to `apps/web/.env.local` (gitignored); documented them in `.env.local.example`. Requires a dev-server restart to load.
+- **Vercel (production):** linked the `lead-machine-web` project (team `daniel-nissens-projects`) and added the three CVR vars to **Production** via `vercel env add`. **Preview not set** — the CLI kept returning `git_branch_required` even with `--value … --yes` (v54.6.1 quirk); do it in the dashboard if branch deploys need it.
+- **Redeploy gotcha:** Vercel snapshots env vars at *deploy-creation* time, so the existing build couldn't see them. `vercel redeploy` **fails** here ("No Next.js version detected") because it ignores the project's `apps/web` Root Directory. Empty commits get **auto-canceled** (monorepo "skip build if root dir unchanged" rule). Fix: push a real change *under `apps/web`* → git-integration build picks up the vars. Live deploy `6ye61a0cq` is Ready + holds the prod aliases.
+- **Region:** already **Stockholm (`arn1`)** via `apps/web/vercel.json` `"regions":["arn1"]` (set Session 6) — verified honored at the deployment level via the Vercel API (not overridden to US). Best case for reaching `distribution.virk.dk` from a Nordic IP.
+- **Stopped at:** committed + pushed to `main`; CVR creds live locally + on Vercel Production; functions in Stockholm. **Unverified:** an actual live discovery search on the deployed site (needs login) — CVR endpoint was TCP-unreachable from this sandbox, so real end-to-end from Vercel is still to be confirmed by the user. Remaining M7 ship steps unchanged (Fly worker deploy, Robinson list, publish privacy notice, close epics).
 
 ### Session 8 — 2026-06-30  (finish the 99 restaurant leads)
 Ran the rest of the pipeline on the 99 discovered-only restaurant leads (561110, Aarhus 8000) so every lead in the DB is complete. All against live creds from local dev; all stages logged to `jobs`.
