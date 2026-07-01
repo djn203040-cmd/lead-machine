@@ -60,6 +60,19 @@ function employeeClause(bands?: string[]): EsClause | null {
   };
 }
 
+// `sammensatStatus` is an *analyzed text* field in the cvr-permanent index, so
+// a `terms` filter (which does not analyze its input) never matches — the
+// active value "NORMAL" is only reachable via `match`. OR a `match` per status.
+function statusClause(statuses: string[]): EsClause | null {
+  if (!statuses.length) return null;
+  return {
+    bool: {
+      should: statuses.map((s) => ({ match: { [PATH_STATUS]: s } })),
+      minimum_should_match: 1,
+    },
+  };
+}
+
 export function buildEsQuery(params: SearchParameters): EsClause {
   const filters: EsClause[] = [];
 
@@ -73,7 +86,8 @@ export function buildEsQuery(params: SearchParameters): EsClause {
   if (emp) filters.push(emp);
 
   const statuses = (params.statuses ?? [...ACTIVE_STATUSES]).map((s) => s.trim().toUpperCase());
-  if (statuses.length) filters.push({ terms: { [PATH_STATUS]: statuses } });
+  const status = statusClause(statuses);
+  if (status) filters.push(status);
 
   if (filters.length === 0) return { match_all: {} };
   return { bool: { filter: filters } };
