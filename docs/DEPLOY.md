@@ -53,10 +53,14 @@ supabase gen types typescript --project-id dxkxamlwucknndcqqtrj \
 
 ## 3. Web → Vercel
 
-1. Import the repo into Vercel; set **root directory** to `apps/web` (the
-   `vercel.json` there builds from the monorepo root with pnpm).
+1. Import the repo into Vercel; set **root directory** to `apps/web`. Vercel
+   auto-detects Next.js + the pnpm workspace and runs a normal install/build —
+   `vercel.json` only pins the framework and `arn1` region (do **not** override
+   the install command to a no-op; Next.js detection runs before the build).
 2. Set `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Production +
-   Preview).
+   Preview). Discovery also needs `CVR_ES_USER`, `CVR_ES_PASSWORD`, and
+   `CVR_ES_URL=http://distribution.virk.dk/cvr-permanent/virksomhed/_search`
+   (**http**, not https — the endpoint has no TLS listener).
 3. In Supabase → Auth → URL config, add the Vercel domain to the allowed
    redirect URLs so login works.
 4. Deploy. Smoke test: visit `/` → redirected to `/login` → sign in → `/leads`.
