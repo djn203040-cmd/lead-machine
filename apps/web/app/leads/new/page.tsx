@@ -5,6 +5,8 @@ import DiscoverForm from "./_components/DiscoverForm";
 export const metadata = { title: "Find virksomheder" };
 
 export default function NewSearchPage() {
+  // Discovery needs CVR_ES_USER / CVR_ES_PASSWORD in the server environment
+  // (apps/web/.env.local locally; Vercel project env vars in production).
   const configured = cvrCredsFromEnv() !== null;
 
   return (
