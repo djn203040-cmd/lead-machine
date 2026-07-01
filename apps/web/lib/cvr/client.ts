@@ -19,7 +19,7 @@ export type CvrCreds = { url: string; user: string; password: string };
 export function cvrCredsFromEnv(): CvrCreds | null {
   const url =
     process.env.CVR_ES_URL ||
-    "https://distribution.virk.dk/cvr-permanent/virksomhed/_search";
+    "http://distribution.virk.dk/cvr-permanent/virksomhed/_search";
   const user = process.env.CVR_ES_USER ?? "";
   const password = process.env.CVR_ES_PASSWORD ?? "";
   if (!user || !password) return null;
@@ -35,16 +35,26 @@ function scrollEndpoint(searchUrl: string): string {
 type Json = any;
 
 async function post(url: string, auth: string, body: Json): Promise<Json> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: auth,
-      "User-Agent": "lead-machine/1.0",
-    },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: auth,
+        "User-Agent": "lead-machine/1.0",
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch (e) {
+    // Network-level failure (DNS/TLS/timeout) — fetch() throws a bare
+    // "fetch failed"; surface the underlying cause so it's diagnosable.
+    const cause = (e as { cause?: unknown })?.cause;
+    const detail = cause instanceof Error ? cause.message : String(cause ?? e);
+    const host = new URL(url).host;
+    throw new Error(`CVR connection failed (${host}): ${detail}`);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`CVR ${res.status}: ${text.slice(0, 200)}`);
