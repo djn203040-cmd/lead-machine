@@ -30,7 +30,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 # (Scrapling pulls Playwright/Camoufox; this adds a browser + system libs.)
 # -----------------------------------------------------------------------------
 
-# Default to the smoke test; the host/cron overrides the command, e.g.
+# Default to the smoke test; the host/cron overrides the whole command, e.g.
 #   docker run --env-file .env <image> leadmachine discover -b 960210 -p 2200
-ENTRYPOINT ["leadmachine"]
-CMD ["hello"]
+# NB: no ENTRYPOINT — fly.toml's `[processes] app = "sleep infinity"` must fully
+# replace the command to keep the box alive; an ENTRYPOINT would prepend
+# `leadmachine` and turn it into `leadmachine sleep infinity` (exits instantly).
+CMD ["leadmachine", "hello"]
