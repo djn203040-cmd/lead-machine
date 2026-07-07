@@ -7,8 +7,8 @@
 ## ▶ Resume here (next session)
 
 - **Project:** Lead Machine — Danish local-business lead engine (find → qualify → enrich → score). See [`PLAN.md`](../PLAN.md).
-- **State:** V1 · **M0–M7 all on `main`** · **FULL PIPELINE PROVEN LIVE (Session 7, 2026-06-30)** — ran `discover → qualify → enrich-financial → score → angles` against real CVR creds + live Supabase + real `ANTHROPIC_API_KEY`. Migration `0002_compliance.sql` is **already applied** to the live DB. The index is **LIVE current data** (not a 2022 snapshot — that's just a stale alias label). **Remaining = production deploy (Vercel/Fly) + Robinson list + publish privacy notice + close epics.**
-- **Branch:** `main`. Session 7 + 9 changes are **committed & pushed to `main`** (Session 9, 2026-07-01). Working tree clean.
+- **State:** V1 · **M0–M7 all on `main`** · **PRODUCTION IS LIVE (Session 10, 2026-07-07)** — worker deployed on **Fly** (`lead-machine-worker`, region arn, on-demand one-shot machine), web on **Vercel**, migrations `0001–0004` all applied to live Supabase (`dxkxamlwucknndcqqtrj`). Enrichment is **event-driven**: Find virksomheder → "Ja, berig" → web starts the Fly worker via the Machines API → it drains qualify→financial→score→angles and stops (~$0 idle). All 192 leads currently enriched + angled. Anthropic API + Fly both have cards on file (angles need API credits — separate from any Claude.ai subscription). **Remaining = real-UI smoke test + Robinson list + publish privacy notice + close epics.**
+- **Branch:** `main`. Session 10 changes **committed & pushed to `main`** (through `977c615`, 2026-07-07). Working tree clean.
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude (`claude-opus-4-8`) for Danish angles.
 - **Local dev is set up:** `uv` installed; `services/worker/.env` + `apps/web/.env.local` filled with real creds (both gitignored). `pnpm install` + `uv sync` done. `pnpm --filter web dev` boots against live Supabase. 165 worker tests green, ruff clean, web builds.
 
@@ -17,9 +17,10 @@
 2. **`cvr/branchekoder.py`** + `apps/web/lib/branchekoder.ts` + `tests/test_branchekoder.py` + `tests/test_scoring.py` — **catalog regenerated** against the live register (Denmark migrated active companies to revised DB codes; ~half the old codes matched only ceased firms). Key remaps: 960210→962100 frisør, 561010→561110 restaurant, 691010→741100 advokat, 692020→692000, 452010→953190, 477100→477110, 960220→962200, 960400→962300, 960900→969900, 869010+869090→869900, 107100→107120, 563000→563020. Low-yield kept-as-is: 561020 pizza, 451120 car, 477810 optiker, 562900.
 
 ### ▶ Next task — finish shipping M7 ([#8](https://github.com/djn203040-cmd/lead-machine/issues/8))
-The live E2E pass is **done** (Session 7). What remains is production hosting + paperwork:
+The live E2E pass is **done** (Session 7) and **production is deployed & running** (Session 10). What remains is a real-UI smoke test + paperwork:
 - ~~**Commit & push** the Session-7 files to `main`.~~ **DONE (Session 9)** — pushed alongside the Find virksomheder UX overhaul.
-- **Deploy** per [`docs/DEPLOY.md`](DEPLOY.md): web→Vercel, worker→Fly.io (Dockerfile + fly.toml ready), set the env matrix. (Migration already applied.)
+- ~~**Deploy** per [`docs/DEPLOY.md`](DEPLOY.md): web→Vercel, worker→Fly.io, set the env matrix.~~ **DONE (Session 10)** — worker live on Fly (on-demand), web on Vercel, migration `0004` applied, enrichment event-driven. Anthropic + Fly cards on file.
+- **Smoke-test the real UI flow** (user, still pending): Find virksomheder → "Ja, berig" → confirm leads auto-enrich within a few minutes and land under the "Beriget" tab. Needs `FLY_API_TOKEN` in Vercel (user added) for the instant trigger.
 - **Provision the Robinson list** on the worker host, set `ROBINSON_LIST_PATH`, run `leadmachine screen` (warns loudly if the list is empty).
 - **Fill the `[…]` placeholders** in `docs/compliance/LIA.md` + `privacy-notice.md` (controller/contact/URL) and **publish** the privacy notice.
 - **Close the M1–M6 epics** (#2/#3/#4/#5/#6/#7) — acceptance now confirmed on real data.
@@ -245,3 +246,29 @@ Cloned the repo into `Desktop/Claude code/Lead machine`, stood up local dev, and
 - **Measured `reklamebeskyttelse`:** ~**67% of active companies** are ad-protected (range 47% dentists → 76% photographers; by form: A/S 44% < sole-trader 63% < ApS 65% < I/S 80%). So a search yields ~⅓ contactable leads — the pipeline auto-suppresses the rest at discovery.
 - **Decisions this session:** (1) keep dropping reklamebeskyttet leads at discovery — storing them adds no value (the count is already in job stats; re-discovery re-checks protection); do NOT fold them into the scored pipeline with a low score (reklamebeskyttelse is a legal opt-out under CVR-loven, applies regardless of score/channel incl. phone). (2) Declined catalog target-tuning for now.
 - **Stopped at:** Session-7 changes UNCOMMITTED on `main` (6 files). **Next = commit/push + production deploy** — see "▶ Next task" at top.
+
+### Session 10 — 2026-07-07  (production is LIVE · 3 prod bugfixes · opt-in enrichment · on-demand Fly worker · first real deploy)
+Took the app from "deploy artifacts exist" to **fully deployed and running on real data in production.** Worker is now live on Fly, web on Vercel, migration `0004` applied, and enrichment is event-driven. All 192 leads enriched + angled.
+
+- **Fixed 3 production bugs the user hit, in order:**
+  1. **"fetch failed" on Find virksomheder** — the CVR ES endpoint `distribution.virk.dk` serves **plain HTTP on port 80 only** (no https/443 listener); the default + `.env.local` used `https://` → TCP hang → bare "fetch failed". Switched to `http://` (matches the worker's `config.py`); also surfaced the underlying `error.cause` in `post()`. Commit `a3664b6`. **The Vercel `CVR_ES_URL` env var had to be corrected to http too** (user did it).
+  2. **Vercel build failed ("No Next.js version detected")** — `apps/web/vercel.json` made the install command a no-op (`echo…`) and shoved `pnpm install` into `buildCommand`, but Vercel runs Next.js detection **between** install and build → next wasn't installed yet. Removed the custom commands; Vercel auto-detects Next.js + pnpm workspace. Commit `bd04f07` (+ `4050040` docs).
+  3. **Discovery returned "0 found"** — the **same `sammensatStatus` analyzed-text bug from Session 7, but in the web TS port** (`apps/web/lib/cvr/query.ts` still used `terms`, never fixed alongside the Python). Ported `_status_clause` → `match`-in-`should`. Verified live: branchekode 962100 went **0 → 7800 hits**. Commit `5367148`. Lesson: `query.py` and `query.ts` are parallel builders that MUST stay in sync (recorded in memory).
+- **Built opt-in enrichment (user's spec: prompt after discovery + Beriget/Ikke-beriget list split).** Commit `7d686ed`:
+  - Migration `0004_enrichment_status.sql`: `enrichment_status` on `leads` (`pending`→`queued`→`enriching`→`enriched`, plus `skipped`/`failed`), indexed, backfills scored leads to `enriched`; adds `enrich_queued` jobs.type.
+  - Web: discovery returns still-`pending` lead IDs → post-discovery **modal** ("Berig N nye leads?" Ja/Nej); Ja→`queued`, Nej→`skipped`. Leads list gets a **Beriget / Ikke beriget** tab (defaults to enriched) with an enrichment badge + per-row "Berig" button. Shared `enrichment-actions.ts` (chunked, gated transitions).
+  - Worker: new `pipeline.py` houses per-stage runners (select/map/run, optional `lead_ids` scope) shared by the CLI commands **and** a new `enrich-queued` orchestrator that drains the queue through qualify→financial→score→angles and flips to `enriched`/`failed`. Refactored the 4 stage commands onto these runners (single source of truth — the fix for the cli/pipeline drift class of bug). 172 worker tests green.
+- **Reworked to ON-DEMAND (user: "no need to keep it active always").** Commit `977c615` (+ `a557858` Dockerfile fix):
+  - Fly worker is now a **one-shot machine that stays stopped (~$0)**: `fly.toml` runs `enrich-queued --drain && screen` with `[[restart]] policy = "never"`. On opt-in, the web `enqueueEnrichment` action starts it via the **Fly Machines API** (`apps/web/lib/fly.ts`); it drains the whole queue (looping — concurrent searches self-heal), screens, and stops.
+  - **Dockerfile fix:** dropped `ENTRYPOINT ["leadmachine"]` — it turned `[processes] sleep infinity`/drain into `leadmachine sleep infinity` (exits on boot). Now `CMD ["leadmachine","hello"]` so the process string fully replaces the command.
+  - Cron: the 15-min ssh-poll became a **daily backstop** that just starts the machine (safety net for a failed web trigger).
+- **First real production deploy (worker had never been deployed — earlier sessions ran it locally):**
+  - Installed `flyctl`; **created the Fly app `lead-machine-worker`** (region arn) + `lm_data` volume; imported all secrets from `services/worker/.env`; `fly deploy` (remote build).
+  - Applied migration `0004` to the live Supabase (`dxkxamlwucknndcqqtrj`) via MCP — backfilled 147 scored leads → `enriched`.
+  - Ran the full pipeline on the queue: **all 192 leads enriched + 192 angles (0 missing).**
+- **Two account blockers surfaced & resolved (both user-side, needed a card):**
+  - **Anthropic API was out of credits** — the `angles` stage 400'd (`credit balance too low`) for 39/45 leads. This is the **API**, billed separately from any Claude.ai subscription (prepaid credits in console.anthropic.com — a subscription does NOT cover programmatic API calls). User added a card → re-ran → all angles generated.
+  - **Fly was on the free trial** — machines are killed after 5 min, which cut off longer drains. User added a card → verified an **8.5-min drain ran to completion** with no trial-stop.
+- **Wired the on-demand trigger auth:** `FLY_API_TOKEN` (Fly deploy token) → user added to **Vercel** env (instant trigger); I set it as a **GitHub repo secret** via `gh` and **test-ran the backstop workflow → success (14s).** Both trigger paths confirmed live end-to-end (Machines-API start → drain → stop).
+- **Cost model:** marginal ≈ **$0.03–0.05/lead** (all Claude/Opus angles; Fly compute ~$0.00002/lead). Fixed ≈ Fly ~$0.30/mo (volume) + Supabase $0 free/$25 Pro + Vercel $0 Hobby/$20 Pro. Realistic steady use ≈ **$80–125/mo all-in** at ~2k leads/mo, dominated by lead volume. Lever: angles are ~100% of Claude spend (generate only for high-score leads, or use Haiku, to cut it).
+- **Stopped at:** everything committed & pushed to `main` (through `977c615`); production live. **Next = user smoke-tests the real UI flow** (Find virksomheder → Ja, berig → auto-enrich) + provision Robinson list + publish privacy notice + close M1–M6 epics.
