@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import NavTabs from "./_components/NavTabs";
 import SignOutButton from "./_components/SignOutButton";
 
 function LogoMark() {
@@ -36,6 +37,7 @@ export default async function LeadsLayout({ children }: { children: React.ReactN
               Lead Machine
             </span>
           </Link>
+          <NavTabs />
           <div className="flex items-center gap-3">
             <Link href="/leads/new" className="btn btn-primary">
               <span className="text-base leading-none">+</span> Find virksomheder
