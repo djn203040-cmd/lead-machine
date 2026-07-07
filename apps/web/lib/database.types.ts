@@ -264,6 +264,7 @@ export type Database = {
           created_at: string
           cvr_number: string | null
           cvr_status: string | null
+          discovered_url: string | null
           email: string | null
           employees_band: string | null
           employees_exact: number | null
@@ -285,6 +286,8 @@ export type Database = {
           updated_at: string
           website: string | null
           website_need: string
+          website_quality: string | null
+          website_source: string | null
         }
         Insert: {
           address?: string | null
@@ -297,6 +300,7 @@ export type Database = {
           created_at?: string
           cvr_number?: string | null
           cvr_status?: string | null
+          discovered_url?: string | null
           email?: string | null
           employees_band?: string | null
           employees_exact?: number | null
@@ -318,6 +322,8 @@ export type Database = {
           updated_at?: string
           website?: string | null
           website_need?: string
+          website_quality?: string | null
+          website_source?: string | null
         }
         Update: {
           address?: string | null
@@ -330,6 +336,7 @@ export type Database = {
           created_at?: string
           cvr_number?: string | null
           cvr_status?: string | null
+          discovered_url?: string | null
           email?: string | null
           employees_band?: string | null
           employees_exact?: number | null
@@ -351,6 +358,8 @@ export type Database = {
           updated_at?: string
           website?: string | null
           website_need?: string
+          website_quality?: string | null
+          website_source?: string | null
         }
         Relationships: [
           {

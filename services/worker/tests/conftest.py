@@ -217,12 +217,34 @@ class MockPageSpeed:
 
 class FakeWebsiteWriter:
     def __init__(self) -> None:
-        self.writes: dict[str, tuple[str, dict[str, Any], dict[str, Any]]] = {}
+        self.writes: dict[str, Any] = {}
 
-    def write(
-        self, lead_id: str, website_need: str, evidence: dict[str, Any], social: dict[str, Any]
-    ) -> None:
-        self.writes[lead_id] = (website_need, evidence, social)
+    def write(self, lead_id: str, assessment: Any) -> None:
+        self.writes[lead_id] = assessment
+
+
+class StubDiscoverer:
+    """Returns a canned DiscoveryResult (or None) and records the lead seen."""
+
+    def __init__(self, result: Any = None) -> None:
+        self.result = result
+        self.seen: list[Any] = []
+
+    def discover(self, lead: Any) -> Any:
+        self.seen.append(lead)
+        return self.result
+
+
+class StubGrader:
+    """Returns a canned WebsiteQuality and records grade() calls."""
+
+    def __init__(self, quality: Any) -> None:
+        self.quality = quality
+        self.calls = 0
+
+    def grade(self, **kwargs: Any) -> Any:
+        self.calls += 1
+        return self.quality
 
 
 # --- scoring (M4) ----------------------------------------------------------

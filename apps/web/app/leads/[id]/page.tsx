@@ -3,7 +3,14 @@ import { notFound } from "next/navigation";
 import type { Tables } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { groupLabel } from "@/lib/branchekoder";
-import { employeesLabel, formatDate, formatDKK, websiteNeedMeta } from "@/lib/leadmeta";
+import {
+  employeesLabel,
+  formatDate,
+  formatDKK,
+  websiteNeedMeta,
+  websiteQualityMeta,
+  websiteSourceLabel,
+} from "@/lib/leadmeta";
 import {
   type ContactEnrichment,
   type FinancialEnrichment,
@@ -221,6 +228,35 @@ export default async function LeadDetailPage({
             <Section title="Hjemmesidevurdering">
               <dl>
                 <Field label="Vurdering" value={websiteNeedMeta(lead.website_need).label} />
+                {lead.website_quality && (
+                  <Field
+                    label="Kvalitet"
+                    value={
+                      websiteQualityMeta(lead.website_quality)?.label ?? lead.website_quality
+                    }
+                  />
+                )}
+                {lead.website_source && (
+                  <Field label="Kilde" value={websiteSourceLabel(lead.website_source)} />
+                )}
+                {lead.discovered_url && (
+                  <Field
+                    label="Fundet URL"
+                    value={
+                      <a
+                        href={lead.discovered_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-brand-700 hover:underline"
+                      >
+                        {lead.discovered_url}
+                      </a>
+                    }
+                  />
+                )}
+                {web.quality?.justification_da && (
+                  <Field label="Kvalitetsnote" value={web.quality.justification_da} />
+                )}
                 {web.resolved?.url && (
                   <Field
                     label="URL"

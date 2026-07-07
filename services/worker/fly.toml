@@ -8,6 +8,7 @@
 #   fly secrets set SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
 #                   CVR_ES_USER=... CVR_ES_PASSWORD=... \
 #                   ANTHROPIC_API_KEY=... PAGESPEED_API_KEY=... \
+#                   BRAVE_API_KEY=... \
 #                   ROBINSON_LIST_PATH=/data/robinson.txt
 
 app = "lead-machine-worker"

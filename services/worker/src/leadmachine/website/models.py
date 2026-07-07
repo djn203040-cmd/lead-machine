@@ -86,6 +86,13 @@ class WebsiteAssessment:
     website_need: str
     evidence: dict[str, Any] = field(default_factory=dict)
     social: dict[str, Any] = field(default_factory=dict)
+    # Where the graded site came from: ``cvr`` (registered), or one of the
+    # discovery tiers (``email_domain`` / ``name_guess`` / ``search``). ``None``
+    # when there is no site (need = none/dead/parked/…).
+    website_source: str | None = None
+    discovered_url: str | None = None
+    # LLM quality tier of a live site ∈ {dated, basic, modern, premium}.
+    website_quality: str | None = None
 
 
 @dataclass(slots=True)
@@ -93,3 +100,43 @@ class LeadToQualify:
     lead_id: str
     website: str | None = None
     company_name: str | None = None
+    # Corroborating signals used to discover + verify a site when CVR has none.
+    email: str | None = None
+    phone: list[str] = field(default_factory=list)
+    city: str | None = None
+    postal_code: str | None = None
+    cvr_number: str | None = None
+
+
+@dataclass(slots=True)
+class DiscoveryResult:
+    """A verified, live website found for a lead that had none in CVR."""
+
+    url: str
+    host: str
+    source: str  # email_domain | name_guess | search
+    confidence: float  # 0..1 ownership confidence
+    matched: list[str] = field(default_factory=list)  # which signals matched
+    fetch: "FetchResult | None" = None  # the page we verified (reused for analysis)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "url": self.url,
+            "host": self.host,
+            "source": self.source,
+            "confidence": round(self.confidence, 2),
+            "matched": self.matched,
+        }
+
+
+@dataclass(slots=True)
+class WebsiteQuality:
+    """LLM grade of a live site's design/age."""
+
+    tier: str  # dated | basic | modern | premium
+    reasons: list[str] = field(default_factory=list)
+    justification_da: str = ""
+    model: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)

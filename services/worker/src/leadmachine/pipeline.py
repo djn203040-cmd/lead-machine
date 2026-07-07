@@ -61,33 +61,60 @@ def qualify_leads(
     lead_ids: list[str] | None = None,
 ) -> Any:
     from .website import (
+        ClaudeGrader,
         DnsResolver,
         HttpxFetcher,
         PageSpeedClient,
         SupabaseWebsiteWriter,
         WebsiteDeps,
+        WebsiteDiscoverer,
         run_qualification,
     )
     from .website.models import LeadToQualify
 
-    query = db.table("leads").select("id,website,company_name").not_.is_("cvr_number", "null")
+    query = db.table("leads").select(
+        "id,website,company_name,email,phone,city,postal_code,cvr_number"
+    ).not_.is_("cvr_number", "null")
     if only_unknown:
         query = query.eq("website_need", "unknown")
     res = _scope(query, lead_ids).limit(limit).execute()
     leads = [
-        LeadToQualify(lead_id=r["id"], website=r.get("website"), company_name=r.get("company_name"))
+        LeadToQualify(
+            lead_id=r["id"],
+            website=r.get("website"),
+            company_name=r.get("company_name"),
+            email=r.get("email"),
+            phone=list(r.get("phone") or []),
+            city=r.get("city"),
+            postal_code=r.get("postal_code"),
+            cvr_number=r.get("cvr_number"),
+        )
         for r in (res.data or [])
     ]
 
     psi = PageSpeedClient.from_settings(settings) if settings.pagespeed_api_key else None
     fetcher = HttpxFetcher()
+    resolver = DnsResolver()
+    # Discovery (email domain → name guess → Brave) always runs; Brave is only
+    # wired in when its key is set. Grading is on when an Anthropic key is set.
+    discoverer = WebsiteDiscoverer.from_settings(settings, fetcher, resolver)
+    grader = ClaudeGrader.from_settings(settings) if settings.anthropic_api_key else None
     try:
-        deps = WebsiteDeps(fetcher=fetcher, resolver=DnsResolver(), pagespeed=psi)
+        deps = WebsiteDeps(
+            fetcher=fetcher,
+            resolver=resolver,
+            pagespeed=psi,
+            discoverer=discoverer,
+            grader=grader,
+        )
         return run_qualification(leads, deps, SupabaseWebsiteWriter(db))
     finally:
         fetcher.close()
+        discoverer.close()
         if psi is not None:
             psi.close()
+        if grader is not None:
+            grader.close()
 
 
 def enrich_financial_leads(

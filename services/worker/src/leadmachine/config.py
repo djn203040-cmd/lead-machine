@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     pagespeed_api_key: str = ""
     anthropic_api_key: str = ""
 
+    # Website discovery (find a real site when CVR has none) + quality grading.
+    # Brave Web Search API — the paid fallback after the free email/name tiers
+    # (https://brave.com/search/api/). Grading uses a cheap Claude model.
+    brave_api_key: str = ""
+    website_grader_model: str = "claude-haiku-4-5"
+
     # Compliance — local path to the Robinson opt-out register (provisioned
     # out-of-band on the worker host; licensed data, never committed).
     robinson_list_path: str = ""

@@ -21,6 +21,20 @@ export type WebsiteEvidence = {
   };
   reasons?: string[];
   note?: string;
+  // Present when the site was found by discovery (CVR had none).
+  discovery?: {
+    source?: string;
+    host?: string;
+    confidence?: number;
+    matched?: string[];
+  };
+  // LLM design/age grade of a live site.
+  quality?: {
+    tier?: string;
+    reasons?: string[];
+    justification_da?: string;
+    model?: string;
+  };
 };
 
 export type RevenueEstimate = {

@@ -9,15 +9,19 @@ from __future__ import annotations
 
 from .analyze import analyze
 from .classify import assess
+from .discover import BraveSearchClient, WebsiteDiscoverer
 from .domain import DnsResolver, Resolver, classify_domain, classify_from_fetch
 from .fetch import HttpxFetcher, WebsiteFetcher
+from .grade import ClaudeGrader
 from .models import (
+    DiscoveryResult,
     DomainStatus,
     FetchResult,
     LeadToQualify,
     PageSpeedResult,
     ResolveResult,
     WebsiteAssessment,
+    WebsiteQuality,
     WebsiteSignals,
 )
 from .pagespeed import PageSpeedClient, parse_pagespeed
@@ -43,6 +47,9 @@ __all__ = [
     "WebsiteFetcher",
     "PageSpeedClient",
     "parse_pagespeed",
+    "BraveSearchClient",
+    "WebsiteDiscoverer",
+    "ClaudeGrader",
     "qualify_one",
     "run_qualification",
     "QualifyStats",
@@ -55,5 +62,7 @@ __all__ = [
     "WebsiteSignals",
     "PageSpeedResult",
     "WebsiteAssessment",
+    "WebsiteQuality",
+    "DiscoveryResult",
     "LeadToQualify",
 ]

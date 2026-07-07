@@ -1,4 +1,11 @@
-from leadmachine.website.models import FetchResult, LeadToQualify, PageSpeedResult
+from leadmachine.website.models import (
+    DiscoveryResult,
+    FetchResult,
+    LeadToQualify,
+    PageSpeedResult,
+    WebsiteAssessment,
+    WebsiteQuality,
+)
 from leadmachine.website.qualify import (
     SupabaseWebsiteWriter,
     WebsiteDeps,
@@ -11,7 +18,9 @@ from .conftest import (
     FakeSupabase,
     FakeWebsiteWriter,
     MockPageSpeed,
+    StubDiscoverer,
     StubFetcher,
+    StubGrader,
 )
 
 MODERN_HTML = (
@@ -103,13 +112,69 @@ def test_run_qualification_tallies_and_writes() -> None:
 
 def test_supabase_writer_updates_lead_and_enrichment() -> None:
     fake = FakeSupabase()
-    SupabaseWebsiteWriter(fake).write("lead-1", "bad", {"reasons": ["no_viewport"]}, {"has_fb_page": True})
+    a = WebsiteAssessment(
+        "bad", {"reasons": ["no_viewport"]}, {"has_fb_page": True}, website_source="cvr"
+    )
+    SupabaseWebsiteWriter(fake).write("lead-1", a)
 
     assert len(fake.log) == 2
     (t1, row1, _), (t2, row2, oc2) = fake.log
     assert t1 == "leads"
-    assert row1 == {"website_need": "bad"}
+    assert row1["website_need"] == "bad"
+    assert row1["website_source"] == "cvr"
+    assert row1["discovered_url"] is None
     assert (t2, oc2) == ("lead_enrichment", "lead_id")
     assert row2["website"]["reasons"] == ["no_viewport"]
     assert row2["social"] == {"has_fb_page": True}
     assert "last_enriched_at" in row2
+
+
+# --- discovery + grading integration ---------------------------------------
+def _discovered_fetch() -> FetchResult:
+    return FetchResult(final_url="https://bagermartin.dk/", status=200, html=MODERN_HTML)
+
+
+def test_discovery_turns_none_into_graded_site() -> None:
+    """A lead with no CVR site but a discoverable one is graded, not 'none'."""
+    found = DiscoveryResult(
+        url="https://bagermartin.dk/",
+        host="bagermartin.dk",
+        source="email_domain",
+        confidence=0.85,
+        matched=["name"],
+        fetch=_discovered_fetch(),
+    )
+    deps = WebsiteDeps(
+        fetcher=StubFetcher(_modern_fetch()),
+        resolver=FakeResolver(),
+        discoverer=StubDiscoverer(found),
+        grader=StubGrader(WebsiteQuality(tier="modern", reasons=["responsive"])),
+    )
+    a = qualify_one(LeadToQualify("L", None, "Bager Martin ApS", email="info@bagermartin.dk"), deps)
+
+    assert a.website_need == "modern"  # graded on the discovered live site
+    assert a.website_source == "email_domain"
+    assert a.discovered_url == "https://bagermartin.dk/"
+    assert a.website_quality == "modern"
+    assert a.evidence["discovery"]["source"] == "email_domain"
+
+
+def test_discovery_absent_still_none() -> None:
+    deps = WebsiteDeps(
+        fetcher=StubFetcher(_modern_fetch()),
+        resolver=FakeResolver(),
+        discoverer=StubDiscoverer(None),  # nothing found
+    )
+    a = qualify_one(LeadToQualify("L", None, "Ukendt ApS"), deps)
+    assert a.website_need == "none"
+    assert a.website_source is None
+
+
+def test_grader_tags_cvr_site() -> None:
+    grader = StubGrader(WebsiteQuality(tier="premium", reasons=["custom_design"]))
+    deps = _deps(_modern_fetch())
+    deps.grader = grader
+    a = qualify_one(LeadToQualify("L", "minsalon.dk"), deps)
+    assert a.website_source == "cvr"
+    assert a.website_quality == "premium"
+    assert grader.calls == 1

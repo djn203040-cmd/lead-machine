@@ -25,6 +25,32 @@ export const WEBSITE_NEED_OPTIONS = Object.entries(WEBSITE_NEED_META).map(
   ([value, meta]) => ({ value, label: meta.label }),
 );
 
+// website_quality — the LLM design/age grade of a live site (dated → premium).
+export const WEBSITE_QUALITY_META: Record<string, BadgeMeta> = {
+  dated: { label: "Forældet", className: "chip-brand" },
+  basic: { label: "Simpel", className: "chip-amber" },
+  modern: { label: "Moderne", className: "chip-neutral" },
+  premium: { label: "High-end", className: "chip-neutral" },
+};
+
+export function websiteQualityMeta(
+  quality: string | null | undefined,
+): BadgeMeta | null {
+  return quality ? (WEBSITE_QUALITY_META[quality] ?? null) : null;
+}
+
+// website_source — how we found the site (registered vs discovered).
+export const WEBSITE_SOURCE_META: Record<string, string> = {
+  cvr: "CVR-registreret",
+  email_domain: "Fundet via e-mail-domæne",
+  name_guess: "Fundet via firmanavn",
+  search: "Fundet via websøgning",
+};
+
+export function websiteSourceLabel(source: string | null | undefined): string {
+  return source ? (WEBSITE_SOURCE_META[source] ?? source) : "—";
+}
+
 // pipeline_status, in lifecycle order (matches the leads CHECK constraint).
 export const PIPELINE_STATUSES = [
   "new",

@@ -14,11 +14,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Iterable, Protocol
 
-from .classify import assess
+from .analyze import analyze
+from .classify import _social_payload, assess
 from .domain import Resolver, classify_domain, classify_from_fetch
 from .fetch import WebsiteFetcher
 from .independence import is_not_independent
-from .models import DomainStatus, LeadToQualify, WebsiteAssessment
+from .models import DomainStatus, LeadToQualify, ResolveResult, WebsiteAssessment
 from .resolve import resolve_website
 
 NEEDS = ("none", "dead", "parked", "facebook_only", "not_independent", "bad", "outdated", "modern")
@@ -29,6 +30,8 @@ class WebsiteDeps:
     fetcher: WebsiteFetcher
     resolver: Resolver
     pagespeed: Any | None = None  # PageSpeedClient | None
+    discoverer: Any | None = None  # WebsiteDiscoverer | None — find a site when CVR has none
+    grader: Any | None = None  # ClaudeGrader | None — LLM quality tier for live sites
 
 
 @dataclass(slots=True)
@@ -46,9 +49,7 @@ class QualifyStats:
 
 
 class WebsiteWriter(Protocol):
-    def write(
-        self, lead_id: str, website_need: str, website_evidence: dict[str, Any], social: dict[str, Any]
-    ) -> None: ...
+    def write(self, lead_id: str, assessment: WebsiteAssessment) -> None: ...
 
 
 def _needs_pagespeed(signals: Any) -> bool:
@@ -56,9 +57,64 @@ def _needs_pagespeed(signals: Any) -> bool:
     return bool(signals and signals.has_viewport and signals.has_https and not signals.legacy_markup)
 
 
+def _pagespeed(deps: WebsiteDeps, signals: Any, final_url: str, stats: QualifyStats | None) -> Any:
+    """Spend PSI quota only on a live site that passes the static screens."""
+    if deps.pagespeed is None or not _needs_pagespeed(signals):
+        return None
+    psi = deps.pagespeed.analyze(final_url)
+    if stats is not None:
+        stats.psi_calls += 1
+    return psi
+
+
+def _grade_into(
+    a: WebsiteAssessment, deps: WebsiteDeps, signals: Any, result: Any, psi: Any, url: str
+) -> None:
+    """Attach an LLM quality tier to a live-site assessment (best-effort)."""
+    if deps.grader is None:
+        return
+    try:
+        quality = deps.grader.grade(signals=signals, fetch=result, psi=psi, url=url)
+    except Exception:
+        return  # grading never fails qualification
+    a.website_quality = quality.tier
+    a.evidence["quality"] = quality.as_dict()
+
+
+def _discover_and_grade(
+    lead: LeadToQualify, resolve: ResolveResult, deps: WebsiteDeps, stats: QualifyStats | None
+) -> WebsiteAssessment | None:
+    """Try to find + grade a real site for a lead CVR reported as having none."""
+    if deps.discoverer is None:
+        return None
+    try:
+        found = deps.discoverer.discover(lead)
+    except Exception:
+        return None
+    if found is None or found.fetch is None:
+        return None
+
+    signals = analyze(found.fetch, host=found.host)
+    disc_resolve = ResolveResult(
+        kind="url", url=found.url, host=found.host, raw=resolve.raw, confidence="discovered"
+    )
+    a = assess(disc_resolve, domain_status=DomainStatus.LIVE, signals=signals, psi=None)
+    a.evidence["discovery"] = found.as_dict()
+    # Keep any social signal the original CVR field carried (e.g. a Facebook URL).
+    a.social = {**_social_payload(signals, resolve), **a.social}
+    a.website_source = found.source
+    a.discovered_url = found.url
+    _grade_into(a, deps, signals, found.fetch, None, found.url)
+    return a
+
+
 def qualify_one(lead: LeadToQualify, deps: WebsiteDeps, stats: QualifyStats | None = None) -> WebsiteAssessment:
     resolve = resolve_website(lead.website)
     if resolve.kind in ("none", "social", "free_subdomain"):
+        # CVR has no real site — go looking before concluding "none".
+        discovered = _discover_and_grade(lead, resolve, deps, stats)
+        if discovered is not None:
+            return discovered
         return assess(resolve)
 
     # Footprint test: a live site that isn't on the business's own domain
@@ -80,15 +136,12 @@ def qualify_one(lead: LeadToQualify, deps: WebsiteDeps, stats: QualifyStats | No
     if refined is DomainStatus.PARKED:
         return assess(resolve, domain_status=DomainStatus.PARKED)
 
-    from .analyze import analyze
-
     signals = analyze(result, host=host)
-    psi = None
-    if deps.pagespeed is not None and _needs_pagespeed(signals):
-        psi = deps.pagespeed.analyze(result.final_url)
-        if stats is not None:
-            stats.psi_calls += 1
-    return assess(resolve, domain_status=DomainStatus.LIVE, signals=signals, psi=psi)
+    psi = _pagespeed(deps, signals, result.final_url, stats)
+    a = assess(resolve, domain_status=DomainStatus.LIVE, signals=signals, psi=psi)
+    a.website_source = "cvr"
+    _grade_into(a, deps, signals, result, psi, result.final_url)
+    return a
 
 
 def run_qualification(
@@ -103,7 +156,7 @@ def run_qualification(
             stats.errors += 1
             continue
         try:
-            writer.write(lead.lead_id, assessment.website_need, assessment.evidence, assessment.social)
+            writer.write(lead.lead_id, assessment)
         except Exception:
             stats.errors += 1
             continue
@@ -116,20 +169,27 @@ def _now_iso() -> str:
 
 
 class SupabaseWebsiteWriter:
-    """Updates ``leads.website_need`` + ``lead_enrichment.website``/``.social``."""
+    """Updates ``leads`` (need + discovery provenance + quality) and
+    ``lead_enrichment.website``/``.social``."""
 
     def __init__(self, client: Any) -> None:
         self.client = client
 
-    def write(
-        self, lead_id: str, website_need: str, website_evidence: dict[str, Any], social: dict[str, Any]
-    ) -> None:
-        self.client.table("leads").update({"website_need": website_need}).eq("id", lead_id).execute()
+    def write(self, lead_id: str, assessment: WebsiteAssessment) -> None:
+        lead_update: dict[str, Any] = {"website_need": assessment.website_need}
+        # Provenance + quality: write when present, and clear the discovery
+        # columns for a normally-resolved (cvr) site so a re-run can't leave a
+        # stale discovered_url behind.
+        lead_update["website_source"] = assessment.website_source
+        lead_update["discovered_url"] = assessment.discovered_url
+        lead_update["website_quality"] = assessment.website_quality
+        self.client.table("leads").update(lead_update).eq("id", lead_id).execute()
+
         row: dict[str, Any] = {
             "lead_id": lead_id,
-            "website": website_evidence,
+            "website": assessment.evidence,
             "last_enriched_at": _now_iso(),
         }
-        if social:
-            row["social"] = social
+        if assessment.social:
+            row["social"] = assessment.social
         self.client.table("lead_enrichment").upsert(row, on_conflict="lead_id").execute()
