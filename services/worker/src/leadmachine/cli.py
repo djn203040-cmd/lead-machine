@@ -170,22 +170,30 @@ def angles(
 
 @app.command(name="enrich-queued")
 def enrich_queued_cmd(
-    limit: int = typer.Option(200, help="Max queued leads to enrich in this run."),
+    limit: int = typer.Option(200, help="Max queued leads per batch."),
+    drain: bool = typer.Option(
+        False, help="Loop until the queue is empty (the on-demand worker's mode)."
+    ),
 ) -> None:
     """Enrich leads the user opted in (enrichment_status='queued').
 
     Runs the full pipeline — qualify → enrich-financial → score → angles —
-    scoped to exactly the queued set, then flips them to 'enriched'. Intended to
-    run on a schedule so newly discovered, opted-in leads enrich themselves.
+    scoped to exactly the queued set, then flips them to 'enriched'. With
+    --drain it loops until nothing is queued (used by the on-demand machine that
+    the web app starts on opt-in); otherwise it does a single batch of `limit`.
     """
     from .config import settings
     from .db import get_client
     from .jobs import JobRun
-    from .pipeline import enrich_queued
+    from .pipeline import drain_queued, enrich_queued
 
     db = get_client()
-    with JobRun(db, "enrich-queued", payload={"limit": limit}) as job:
-        result = enrich_queued(db, settings, limit=limit)
+    with JobRun(db, "enrich-queued", payload={"limit": limit, "drain": drain}) as job:
+        result = (
+            drain_queued(db, settings, batch=limit)
+            if drain
+            else enrich_queued(db, settings, limit=limit)
+        )
         job.result = result
 
     typer.echo(json.dumps(result, indent=2))

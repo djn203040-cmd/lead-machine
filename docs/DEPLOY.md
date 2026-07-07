@@ -61,9 +61,14 @@ supabase gen types typescript --project-id dxkxamlwucknndcqqtrj \
    Preview). Discovery also needs `CVR_ES_USER`, `CVR_ES_PASSWORD`, and
    `CVR_ES_URL=http://distribution.virk.dk/cvr-permanent/virksomhed/_search`
    (**http**, not https — the endpoint has no TLS listener).
-3. In Supabase → Auth → URL config, add the Vercel domain to the allowed
+3. To trigger enrichment on opt-in (§6), set `FLY_API_TOKEN`
+   (`fly tokens create deploy -a lead-machine-worker`) and optionally
+   `FLY_WORKER_APP` (defaults to `lead-machine-worker`). Server-only — never
+   `NEXT_PUBLIC_`. Without it, opt-in still queues leads; the daily backstop
+   drains them.
+4. In Supabase → Auth → URL config, add the Vercel domain to the allowed
    redirect URLs so login works.
-4. Deploy. Smoke test: visit `/` → redirected to `/login` → sign in → `/leads`.
+5. Deploy. Smoke test: visit `/` → redirected to `/login` → sign in → `/leads`.
 
 ## 4. Worker → Fly.io
 
@@ -122,19 +127,29 @@ batch `enriching`, runs qualify → enrich-financial → score → angles scoped
 exactly those leads, then flips them to `enriched` (or `failed`, safe to
 re-queue). Only `enriched` leads appear under the list's default "Beriget" tab.
 
-This is wired as a **GitHub Actions cron**
-([`.github/workflows/enrich-queued.yml`](../.github/workflows/enrich-queued.yml)),
-every 15 min, running `enrich-queued` then `screen`. One-time setup:
+**On-demand, not a poll.** The Fly worker is a **one-shot machine that stays
+stopped** (≈$0): fly.toml runs `enrich-queued --drain && screen` with restart
+policy `never`. When a user opts leads in, the web app's `enqueueEnrichment`
+action starts the machine via the Fly Machines API (`lib/fly.ts`); it drains the
+whole queue (looping — so leads queued by a concurrent search are caught too),
+runs the compliance screen, and stops. You pay only for the seconds it enriches.
 
-```bash
-fly tokens create deploy -a lead-machine-worker   # add as repo secret FLY_API_TOKEN
-```
+- **Trigger auth:** the web app needs `FLY_API_TOKEN` (see §3). Starting an
+  already-running machine is a no-op, so opt-in can fire it freely.
+- **Backstop:** [`.github/workflows/enrich-queued.yml`](../.github/workflows/enrich-queued.yml)
+  starts the machine once a day (repo secret `FLY_API_TOKEN`) to drain anything
+  whose web trigger failed. It's a safety net, not the primary path.
+- **Manual:** `fly machine start <id> -a lead-machine-worker`, or for a one-off
+  `fly machine run … leadmachine enrich-queued --drain`.
 
 Each command is idempotent (CVR# dedup; `enrichment_status` gating; `--only-*`
-flags skip done work), so runs may overlap safely — `enriching` leads aren't
-re-picked. Keep `screen` **before** any step that feeds outreach. (Alternative:
-a Fly Machines scheduled machine / `fly machine exec` cron running the same
-commands.)
+flags skip done work), so overlapping runs are safe — `enriching` leads aren't
+re-picked. Keep `screen` **before** any step that feeds outreach.
+
+> **Prerequisites for live operation:** the Fly org needs a card on file
+> (trial machines are killed after 5 min, cutting off enrichment), and the
+> Anthropic account needs credits (the `angles` stage 400s on an empty balance;
+> leads still enrich, just without a sales angle until topped up + re-run).
 
 ## 7. Observability & runbook
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { TablesUpdate } from "@/lib/database.types";
+import { triggerEnrichmentWorker } from "@/lib/fly";
 
 export type EnrichmentActionResult = { error?: string; count?: number };
 
@@ -39,7 +40,14 @@ async function transition(
 
 /** Opt leads into enrichment. Re-queues skipped/failed leads too. */
 export async function enqueueEnrichment(ids: string[]): Promise<EnrichmentActionResult> {
-  return transition(ids, "queued", ["pending", "skipped", "failed"]);
+  const res = await transition(ids, "queued", ["pending", "skipped", "failed"]);
+  // Wake the on-demand worker to drain the queue. Best-effort: if it fails the
+  // leads stay 'queued' for the next opt-in or the daily backstop, so never
+  // surface a trigger error as an opt-in failure.
+  if (!res.error && (res.count ?? 0) > 0) {
+    await triggerEnrichmentWorker();
+  }
+  return res;
 }
 
 /** Decline enrichment for newly discovered (still-pending) leads. */

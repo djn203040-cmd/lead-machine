@@ -16,16 +16,23 @@ primary_region = "arn"  # Stockholm — keep data in the EU (eu-north-1 Supabase
 [build]
   dockerfile = "Dockerfile"
 
-# No [http_service]: this app exposes no port. Keep one small machine running so
-# cron/exec has somewhere to land; it idles cheaply.
+# No [http_service]: this app exposes no port. The machine is on-demand — it
+# stays stopped (≈$0) and the web app starts it on enrich opt-in.
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"
 
-# Override the image default (`hello`) so the always-on process just sleeps;
-# real work is triggered via `fly machine exec` / a scheduler.
+# On start, drain the whole enrichment queue then run the compliance screen and
+# exit. `sh -c` so both commands run; the image has no ENTRYPOINT so this string
+# is the full command.
 [processes]
-  app = "sleep infinity"
+  app = "sh -c 'leadmachine enrich-queued --drain && leadmachine screen'"
+
+# One-shot: when the drain command exits, stop and stay stopped (don't restart-
+# loop the job). The web app / daily backstop re-starts the machine on demand.
+[[restart]]
+  policy = "never"
+  processes = ["app"]
 
 # Optional: a persistent volume to hold the Robinson list + any local state.
 # Create it once:  fly volumes create lm_data --size 1 --region arn

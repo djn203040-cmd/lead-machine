@@ -249,3 +249,24 @@ def enrich_queued(db: Client, settings: Settings, *, limit: int = 200) -> dict[s
         "score": scored.as_dict(),
         "angles": angles.as_dict(),
     }
+
+
+def drain_queued(
+    db: Client, settings: Settings, *, batch: int = 100, max_rounds: int = 50
+) -> dict[str, Any]:
+    """Drain the whole enrichment queue: run ``enrich_queued`` until it's empty.
+
+    This is what the on-demand worker machine runs — the web app starts the
+    machine on opt-in, it drains everything queued (including leads queued by
+    other searches while it runs), then exits. ``max_rounds`` bounds a runaway
+    loop; each round processes up to ``batch`` leads.
+    """
+    rounds = 0
+    enriched = 0
+    while rounds < max_rounds:
+        res = enrich_queued(db, settings, limit=batch)
+        if not res.get("queued"):
+            break
+        rounds += 1
+        enriched += res.get("enriched", 0)
+    return {"rounds": rounds, "enriched": enriched}

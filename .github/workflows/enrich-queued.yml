@@ -1,30 +1,34 @@
-# Drives the enrichment queue: every 15 minutes, run the worker's
-# `enrich-queued` orchestrator (qualify → financial → score → angles over leads
-# the user opted in from the web app), then the Robinson compliance screen.
+# Backstop for the on-demand enrichment worker.
+#
+# Enrichment is normally event-driven: opting leads in on the web app starts the
+# worker machine (Fly Machines API), which drains the queue and stops. This job
+# is only a safety net — once a day it starts the machine so any lead whose
+# web-trigger failed still gets enriched. The machine drains and stops itself,
+# so this costs a few seconds of compute.
 #
 # Requires repo secret FLY_API_TOKEN (`fly tokens create deploy -a lead-machine-worker`).
-# The worker machine is always-on (sleep infinity), so `ssh console -C` lands in it.
-name: Enrich queued leads
+name: Enrich queue backstop
 
 on:
   schedule:
-    - cron: "*/15 * * * *" # every 15 min (UTC)
+    - cron: "0 6 * * *" # daily 06:00 UTC
   workflow_dispatch: {} # allow manual runs from the Actions tab
 
-# Don't stack runs if one is slow (heavy XBRL/Claude batches).
 concurrency:
   group: enrich-queued
   cancel-in-progress: false
 
 jobs:
-  enrich:
+  drain:
     runs-on: ubuntu-latest
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       FLY_APP: lead-machine-worker
     steps:
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Enrich opted-in leads
-        run: flyctl ssh console -a "$FLY_APP" -C "leadmachine enrich-queued --limit 200"
-      - name: Robinson compliance screen
-        run: flyctl ssh console -a "$FLY_APP" -C "leadmachine screen"
+      - name: Start worker to drain any queued leads
+        run: |
+          # Start every stopped machine in the app; each drains then stops itself.
+          for id in $(flyctl machines list -a "$FLY_APP" --json | jq -r '.[].id'); do
+            flyctl machine start "$id" -a "$FLY_APP" || true
+          done
