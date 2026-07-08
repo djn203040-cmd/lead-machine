@@ -79,8 +79,10 @@ export type Database = {
           angle_da: string | null
           competitor_angle_type: string | null
           competitor_name: string | null
+          cta_da: string | null
           generated_at: string
           lead_id: string
+          objections: Json
           opening_line_da: string | null
           summary_da: string | null
           weaknesses_da: string | null
@@ -89,8 +91,10 @@ export type Database = {
           angle_da?: string | null
           competitor_angle_type?: string | null
           competitor_name?: string | null
+          cta_da?: string | null
           generated_at?: string
           lead_id: string
+          objections?: Json
           opening_line_da?: string | null
           summary_da?: string | null
           weaknesses_da?: string | null
@@ -99,8 +103,10 @@ export type Database = {
           angle_da?: string | null
           competitor_angle_type?: string | null
           competitor_name?: string | null
+          cta_da?: string | null
           generated_at?: string
           lead_id?: string
+          objections?: Json
           opening_line_da?: string | null
           summary_da?: string | null
           weaknesses_da?: string | null

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Tables } from "@/lib/database.types";
+import { objections } from "@/lib/enrichment";
 import { createClient } from "@/lib/supabase/server";
 import Dialer, { type DialerLead } from "./_components/Dialer";
 
@@ -77,7 +78,7 @@ export default async function DialerPage({
         supabase
           .from("lead_angles")
           .select(
-            "lead_id, opening_line_da, summary_da, angle_da, weaknesses_da, competitor_angle_type, competitor_name",
+            "lead_id, opening_line_da, summary_da, angle_da, weaknesses_da, cta_da, objections, competitor_angle_type, competitor_name",
           )
           .in("lead_id", ids),
         supabase.from("lead_enrichment").select("lead_id, financial, contact").in("lead_id", ids),
@@ -107,6 +108,8 @@ export default async function DialerPage({
             summary_da: a.summary_da,
             angle_da: a.angle_da,
             weaknesses_da: a.weaknesses_da,
+            cta_da: a.cta_da,
+            objections: objections(a.objections),
             competitor_angle_type: a.competitor_angle_type,
             competitor_name: a.competitor_name,
           }

@@ -106,6 +106,62 @@ def test_angle_from_payload_maps_fields() -> None:
     assert angle.competitor_angle_type == "fomo"
 
 
+def test_angle_from_payload_parses_cta_and_objections() -> None:
+    angle = Angle.from_payload(
+        {
+            "summary_da": "x",
+            "weaknesses_da": "y",
+            "angle_da": "z",
+            "opening_line_da": "w",
+            "cta_da": "  Skal vi tage et kort kald?  ",
+            "objections": [
+                {"objection_da": "  Send mig en mail  ", "response_da": "  Klart  "},
+                {"objection_da": "", "response_da": "dropped — no objection"},
+                "not a dict — ignored",
+                {"objection_da": "Hvad koster det?", "response_da": "Gratis at se."},
+                {"objection_da": "En for meget", "response_da": "kappes ved 3"},
+            ],
+            "competitor_name": "",
+            "competitor_angle_type": "none",
+        }
+    )
+    assert angle.cta_da == "Skal vi tage et kort kald?"  # trimmed
+    # malformed/blank items dropped, list capped at 3
+    assert angle.objections == [
+        {"objection_da": "Send mig en mail", "response_da": "Klart"},
+        {"objection_da": "Hvad koster det?", "response_da": "Gratis at se."},
+        {"objection_da": "En for meget", "response_da": "kappes ved 3"},
+    ]
+
+
+def test_angle_from_payload_defaults_missing_cta_and_objections() -> None:
+    angle = Angle.from_payload(
+        {
+            "summary_da": "x",
+            "weaknesses_da": "y",
+            "angle_da": "z",
+            "opening_line_da": "w",
+            "competitor_name": "",
+            "competitor_angle_type": "none",
+        }
+    )
+    assert angle.cta_da == ""
+    assert angle.objections == []
+
+
+def test_angle_as_row_carries_cta_and_objections() -> None:
+    row = Angle(
+        summary_da="s",
+        weaknesses_da="w",
+        angle_da="a",
+        opening_line_da="o",
+        cta_da="c",
+        objections=[{"objection_da": "q", "response_da": "r"}],
+    ).as_row()
+    assert row["cta_da"] == "c"
+    assert row["objections"] == [{"objection_da": "q", "response_da": "r"}]
+
+
 def test_angle_from_payload_coerces_invalid_category_and_blank_name() -> None:
     angle = Angle.from_payload(
         {

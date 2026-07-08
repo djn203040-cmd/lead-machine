@@ -12,11 +12,13 @@ import {
   websiteSourceLabel,
 } from "@/lib/leadmeta";
 import {
+  type AngleObjection,
   type ContactEnrichment,
   type FinancialEnrichment,
   type SocialEnrichment,
   type WebsiteEvidence,
   isEmpty,
+  objections,
   view,
 } from "@/lib/enrichment";
 import {
@@ -68,6 +70,26 @@ function AnglePart({ label, text }: { label: string; text: string | null }) {
     <div className="mt-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{label}</p>
       <p className="mt-0.5 whitespace-pre-wrap text-sm text-ink">{text}</p>
+    </div>
+  );
+}
+
+function Objections({ items }: { items: AngleObjection[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Indvendinger</p>
+      <dl className="mt-1.5 space-y-2">
+        {items.map((o, i) => (
+          <div
+            key={`${o.objection_da}-${i}`}
+            className="rounded-lg border border-brand-100 bg-white/60 p-2.5"
+          >
+            <dt className="text-sm font-medium text-ink">{o.objection_da}</dt>
+            <dd className="mt-0.5 whitespace-pre-wrap text-sm text-muted">→ {o.response_da}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
@@ -167,8 +189,19 @@ export default async function LeadDetailPage({
                   «{angle.opening_line_da}»
                 </blockquote>
               )}
-              <AnglePart label="Resumé" text={angle.summary_da} />
               <AnglePart label="Vinkel" text={angle.angle_da} />
+              {angle.cta_da && (
+                <div className="mt-4 rounded-lg border border-brand-200 bg-white/70 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+                    Book mødet
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-ink">
+                    «{angle.cta_da}»
+                  </p>
+                </div>
+              )}
+              <Objections items={objections(angle.objections)} />
+              <AnglePart label="Resumé" text={angle.summary_da} />
               <AnglePart label="Svagheder" text={angle.weaknesses_da} />
             </section>
           )}

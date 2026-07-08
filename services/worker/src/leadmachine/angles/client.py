@@ -26,6 +26,19 @@ ANGLE_SCHEMA: dict[str, Any] = {
         "weaknesses_da": {"type": "string"},
         "angle_da": {"type": "string"},
         "opening_line_da": {"type": "string"},
+        "cta_da": {"type": "string"},
+        "objections": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "objection_da": {"type": "string"},
+                    "response_da": {"type": "string"},
+                },
+                "required": ["objection_da", "response_da"],
+            },
+        },
         "competitor_name": {"type": "string"},
         "competitor_angle_type": {"type": "string", "enum": ["fomo", "first_mover", "none"]},
     },
@@ -34,6 +47,8 @@ ANGLE_SCHEMA: dict[str, Any] = {
         "weaknesses_da",
         "angle_da",
         "opening_line_da",
+        "cta_da",
+        "objections",
         "competitor_name",
         "competitor_angle_type",
     ],

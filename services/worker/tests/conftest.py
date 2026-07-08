@@ -266,8 +266,15 @@ class MockAnglesClient:
         self.payload = payload or {
             "summary_da": "Lokal frisør uden hjemmeside.",
             "weaknesses_da": "Ingen hjemmeside; kun Facebook.",
-            "angle_da": "En enkel hjemmeside fanger lokale kunder, der søger på Google.",
-            "opening_line_da": "Hej, jeg så at I ikke har en hjemmeside endnu — har I overvejet en?",
+            "angle_da": "Vi har faktisk allerede bygget en færdig demo af en ny hjemmeside til jer.",
+            "opening_line_da": "Hej, jeg så at I ikke har en hjemmeside endnu — derfor ringer jeg.",
+            "cta_da": "Skal vi ikke tage et kort kald på ti minutter, hvor jeg viser dig den?",
+            "objections": [
+                {
+                    "objection_da": "Det er jeg ikke interesseret i.",
+                    "response_da": "Helt fair — men den er jo allerede bygget, så det koster dig kun ti minutter at kigge.",
+                },
+            ],
             "competitor_name": "",
             "competitor_angle_type": "first_mover",
         }

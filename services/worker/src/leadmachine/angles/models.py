@@ -38,6 +38,8 @@ class Angle:
     weaknesses_da: str
     angle_da: str
     opening_line_da: str
+    cta_da: str = ""
+    objections: list[dict[str, str]] = field(default_factory=list)
     competitor_name: str | None = None
     competitor_angle_type: str = "none"
 
@@ -56,6 +58,8 @@ class Angle:
             weaknesses_da=str(data.get("weaknesses_da") or "").strip(),
             angle_da=str(data.get("angle_da") or "").strip(),
             opening_line_da=str(data.get("opening_line_da") or "").strip(),
+            cta_da=str(data.get("cta_da") or "").strip(),
+            objections=_parse_objections(data.get("objections")),
             competitor_name=name,
             competitor_angle_type=category,
         )
@@ -67,6 +71,27 @@ class Angle:
             "weaknesses_da": self.weaknesses_da or None,
             "angle_da": self.angle_da or None,
             "opening_line_da": self.opening_line_da or None,
+            "cta_da": self.cta_da or None,
+            # jsonb array of {objection_da, response_da}; always a list so the UI
+            # can map over it without null-guarding.
+            "objections": self.objections,
             "competitor_name": self.competitor_name,
             "competitor_angle_type": self.competitor_angle_type,
         }
+
+
+def _parse_objections(raw: Any) -> list[dict[str, str]]:
+    """Coerce the model's objections into ≤3 clean {objection_da, response_da}."""
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        objection = str(item.get("objection_da") or "").strip()
+        response = str(item.get("response_da") or "").strip()
+        if objection and response:
+            out.append({"objection_da": objection, "response_da": response})
+        if len(out) == 3:
+            break
+    return out

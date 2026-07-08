@@ -73,6 +73,22 @@ export function view<T>(json: unknown): T {
   return (json ?? {}) as T;
 }
 
+// One cold-call objection + its rebuttal (lead_angles.objections jsonb array).
+export type AngleObjection = { objection_da: string; response_da: string };
+
+// Coerce the lead_angles.objections jsonb into a clean, render-safe array.
+export function objections(json: unknown): AngleObjection[] {
+  if (!Array.isArray(json)) return [];
+  return json.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const o = (item as Record<string, unknown>).objection_da;
+    const r = (item as Record<string, unknown>).response_da;
+    return typeof o === "string" && typeof r === "string" && o && r
+      ? [{ objection_da: o, response_da: r }]
+      : [];
+  });
+}
+
 export function isEmpty(json: unknown): boolean {
   return !json || (typeof json === "object" && Object.keys(json as object).length === 0);
 }
