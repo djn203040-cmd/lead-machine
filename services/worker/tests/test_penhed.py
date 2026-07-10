@@ -14,7 +14,7 @@ from leadmachine.cvr.penhed import (
 )
 
 PENHED_SOURCE = {
-    "Vrproduktionsenhed": {
+    "VrproduktionsEnhed": {
         "pNummer": 1024698951,
         "navne": [
             {"navn": "Noribar", "periode": {"gyldigFra": "2019-05-13", "gyldigTil": None}}
@@ -79,13 +79,13 @@ def test_map_penhed_flattens_trading_name_and_contact() -> None:
 
 
 def test_map_penhed_name_falls_back_to_navne() -> None:
-    rec = {"Vrproduktionsenhed": {"pNummer": 9, "navne": [{"navn": "Fallback Café"}]}}
+    rec = {"VrproduktionsEnhed": {"pNummer": 9, "navne": [{"navn": "Fallback Café"}]}}
     assert map_penhed(rec).name == "Fallback Café"
 
 
 def test_map_penhed_secret_contact_skipped() -> None:
     rec = {
-        "Vrproduktionsenhed": {
+        "VrproduktionsEnhed": {
             "pNummer": 9,
             "hjemmeside": [{"kontaktoplysning": "secret.dk", "hemmelig": True, "periode": {"gyldigTil": None}}],
         }
@@ -112,7 +112,7 @@ def test_fetch_by_pnummer_queries_term_and_maps() -> None:
     assert info is not None
     assert info.name == "Noribar"
     body = json.loads(captured[0].content)
-    assert body == {"size": 1, "query": {"term": {"Vrproduktionsenhed.pNummer": 1024698951}}}
+    assert body == {"size": 1, "query": {"term": {"VrproduktionsEnhed.pNummer": "1024698951"}}}
 
 
 def test_fetch_by_pnummer_no_hits_returns_none() -> None:

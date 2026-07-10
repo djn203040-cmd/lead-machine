@@ -32,8 +32,11 @@ from .mapper import (
     _unwrap,
 )
 
-# The pNummer field in the produktionsenhed ES mapping. Confirm on live data.
-PNUMMER_FIELD = "Vrproduktionsenhed.pNummer"
+# The pNummer field in the produktionsenhed ES mapping. NB: the root document
+# key is "VrproduktionsEnhed" with a capital E (ES field names are
+# case-sensitive) — confirmed against the Erhvervsstyrelsen ES docs.
+PENHED_ROOT = "VrproduktionsEnhed"
+PNUMMER_FIELD = f"{PENHED_ROOT}.pNummer"
 
 __all__ = ["PenhedInfo", "PenhedClient", "EsPenhedClient", "map_penhed", "current_pnummer"]
 
@@ -78,8 +81,8 @@ def current_pnummer(cvr_record: dict[str, Any] | None) -> str | None:
 
 
 def _unwrap_penhed(record: dict[str, Any]) -> dict[str, Any]:
-    """Accept a full ``_source`` ({"Vrproduktionsenhed": {...}}) or the object."""
-    inner = record.get("Vrproduktionsenhed")
+    """Accept a full ``_source`` ({"VrproduktionsEnhed": {...}}) or the object."""
+    inner = record.get(PENHED_ROOT)
     return inner if isinstance(inner, dict) else record
 
 
@@ -158,12 +161,12 @@ class EsPenhedClient:
         self.close()
 
     def fetch_by_pnummer(self, pnummer: str | int) -> PenhedInfo | None:
-        """Look up one production unit by its pNummer (best-effort → ``None``)."""
-        try:
-            key: str | int = int(pnummer)
-        except (TypeError, ValueError):
-            key = str(pnummer)
-        body = {"size": 1, "query": {"term": {PNUMMER_FIELD: key}}}
+        """Look up one production unit by its pNummer (best-effort → ``None``).
+
+        The pNummer is queried as a string, matching the Erhvervsstyrelsen ES
+        docs (``{"term": {"VrproduktionsEnhed.pNummer": "1028076343"}}``).
+        """
+        body = {"size": 1, "query": {"term": {PNUMMER_FIELD: str(pnummer)}}}
         try:
             data = request_json(self._client, "POST", self.search_url, body)
         except Exception:
