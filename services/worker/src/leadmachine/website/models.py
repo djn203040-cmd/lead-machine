@@ -106,6 +106,9 @@ class LeadToQualify:
     city: str | None = None
     postal_code: str | None = None
     cvr_number: str | None = None
+    address: str | None = None  # street line, for address-match verification
+    # Production-unit number: unlocks the storefront trading name + its own site.
+    pnummer: str | None = None
 
 
 @dataclass(slots=True)
@@ -114,19 +117,23 @@ class DiscoveryResult:
 
     url: str
     host: str
-    source: str  # email_domain | name_guess | search
+    source: str  # email_domain | name_guess | penhed | search
     confidence: float  # 0..1 ownership confidence
     matched: list[str] = field(default_factory=list)  # which signals matched
     fetch: "FetchResult | None" = None  # the page we verified (reused for analysis)
+    brand_name: str | None = None  # storefront/trading name, when verified via a P-enhed
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "url": self.url,
             "host": self.host,
             "source": self.source,
             "confidence": round(self.confidence, 2),
             "matched": self.matched,
         }
+        if self.brand_name:
+            d["brand_name"] = self.brand_name
+        return d
 
 
 @dataclass(slots=True)

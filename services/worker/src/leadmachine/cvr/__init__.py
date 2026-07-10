@@ -32,6 +32,13 @@ from .discovery import (  # noqa: E402
     run_discovery,
 )
 from .mapper import MappedLead, map_company  # noqa: E402
+from .penhed import (  # noqa: E402
+    EsPenhedClient,
+    PenhedClient,
+    PenhedInfo,
+    current_pnummer,
+    map_penhed,
+)
 from .query import build_es_query  # noqa: E402
 
 __all__ = [
@@ -41,6 +48,11 @@ __all__ = [
     "EsCvrClient",
     "MappedLead",
     "map_company",
+    "PenhedInfo",
+    "PenhedClient",
+    "EsPenhedClient",
+    "map_penhed",
+    "current_pnummer",
     "run_discovery",
     "DiscoveryStats",
     "LeadWriter",

@@ -27,6 +27,8 @@ export type WebsiteEvidence = {
     host?: string;
     confidence?: number;
     matched?: string[];
+    // Storefront/trading name, when the site was verified via a production unit.
+    brand_name?: string;
   };
   // LLM design/age grade of a live site.
   quality?: {

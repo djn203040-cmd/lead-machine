@@ -70,10 +70,12 @@ def qualify_leads(
         WebsiteDiscoverer,
         run_qualification,
     )
+    from .cvr.penhed import current_pnummer
     from .website.models import LeadToQualify
 
     query = db.table("leads").select(
-        "id,website,company_name,email,phone,city,postal_code,cvr_number"
+        "id,website,company_name,email,phone,city,postal_code,cvr_number,address,"
+        "lead_enrichment(cvr)"
     ).not_.is_("cvr_number", "null")
     if only_unknown:
         query = query.eq("website_need", "unknown")
@@ -88,6 +90,8 @@ def qualify_leads(
             city=r.get("city"),
             postal_code=r.get("postal_code"),
             cvr_number=r.get("cvr_number"),
+            address=r.get("address"),
+            pnummer=current_pnummer((_one(r.get("lead_enrichment")) or {}).get("cvr")),
         )
         for r in (res.data or [])
     ]

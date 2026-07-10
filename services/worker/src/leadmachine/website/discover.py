@@ -59,9 +59,15 @@ DIRECTORY_HOSTS: frozenset[str] = frozenset(
 
 _TLDS = (".dk", ".com")
 _DIGITS_RE = re.compile(r"\d+")
+_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
+_HOUSE_RE = re.compile(r"^\d+[a-z]?$")  # a house-number token: "7", "12b"
 _ACCEPT_THRESHOLD = 0.6  # minimum ownership confidence to attach a discovered site
 _MAX_NAME_CANDIDATES = 4
 _MAX_SEARCH_CANDIDATES = 6
+# Sources whose provenance is trustworthy enough to accept a name-only match, or
+# a corroborated match with no name at all (the domain came from the business's
+# own registered email / production unit).
+_TRUSTED_SOURCES = frozenset({"email_domain", "penhed"})
 
 
 def _strip_www(host: str) -> str:
@@ -84,6 +90,43 @@ def _is_directory(host: str) -> bool:
     return host in DIRECTORY_HOSTS or any(
         host.endswith("." + d) for d in DIRECTORY_HOSTS
     )
+
+
+def _host_from_website(raw: str | None) -> str | None:
+    """Extract a bare host from a registered ``hjemmeside`` value (best-effort)."""
+    if not raw:
+        return None
+    raw = raw.strip()
+    if "://" not in raw:
+        raw = "//" + raw
+    parts = urlsplit(raw)
+    host = (parts.netloc or parts.path).split("@")[-1].split(":")[0].strip("/").lower().strip(".")
+    host = _strip_www(host)
+    return host if host and "." in host else None
+
+
+def _street_name(address: str | None) -> str:
+    """The normalized street (no house number) from an address line, or ``""``.
+
+    ``"Skt. Clemens Stræde 7, 2. th"`` → ``"skt clemens straede"``. Short/generic
+    results (< 5 chars) are dropped so we never match on a stray fragment.
+    """
+    if not address:
+        return ""
+    first = address.split(",")[0]
+    tokens = _normalize(first).replace(".", " ").split()
+    while tokens and _HOUSE_RE.match(tokens[-1]):
+        tokens.pop()
+    street = " ".join(tokens).strip()
+    return street if len(street) >= 5 else ""
+
+
+def _street_match(address: str | None, spaced_text: str) -> bool:
+    """Whether the address's street appears as a run in the (spaced) page text."""
+    street = _street_name(address)
+    if not street:
+        return False
+    return f" {street} " in f" {spaced_text} "
 
 
 def email_domain_candidate(email: str | None) -> str | None:
@@ -200,15 +243,38 @@ def _page_text(fetch: FetchResult) -> str:
     return _normalize(fetch.html or "")[:200_000]
 
 
-def verify_ownership(lead: LeadToQualify, fetch: FetchResult, host: str, source: str) -> tuple[float, list[str]]:
+def _name_present(name: str | None, text: str, alnum: str) -> bool:
+    """Whether a business name (company or brand) appears on the page."""
+    tokens, slug = business_key(name)
+    return bool(
+        (slug and len(slug) >= 5 and slug in alnum)
+        or (tokens and len(tokens) >= 2 and all(t in text for t in tokens))
+        or (len(tokens) == 1 and next(iter(tokens)) in text and len(next(iter(tokens))) >= 5)
+    )
+
+
+def verify_ownership(
+    lead: LeadToQualify,
+    fetch: FetchResult,
+    host: str,
+    source: str,
+    *,
+    brand: Any | None = None,
+) -> tuple[float, list[str]]:
     """Score how confidently this page belongs to *this* business.
 
     Returns ``(confidence, matched)``. A CVR-number match is definitive; a
-    company-name match is the required anchor for everything else, corroborated
-    by phone / email / geo / the email-domain provenance.
+    name match (the company name **or** the production unit's trading name) is
+    the required anchor for everything else, corroborated by phone / email /
+    geo / street address / trusted-source provenance. ``brand`` is an optional
+    :class:`~leadmachine.cvr.penhed.PenhedInfo`-shaped object (``.name`` /
+    ``.phone`` / ``.email`` / ``.address``) so a differently-branded storefront
+    site verifies even though it never names the operating company.
     """
     text = _page_text(fetch)
     digits = _digits(text)
+    spaced = _NON_ALNUM_RE.sub(" ", text)
+    alnum = spaced.replace(" ", "")
     matched: list[str] = []
 
     # CVR number in the footer is the strongest signal Danish sites give us.
@@ -217,21 +283,22 @@ def verify_ownership(lead: LeadToQualify, fetch: FetchResult, host: str, source:
     if cvr_hit:
         matched.append("cvr")
 
-    tokens, slug = business_key(lead.company_name)
-    alnum = re.sub(r"[^a-z0-9]", "", text)
-    name_hit = bool(
-        (slug and len(slug) >= 5 and slug in alnum)
-        or (tokens and len(tokens) >= 2 and all(t in text for t in tokens))
-        or (len(tokens) == 1 and next(iter(tokens)) in text and len(next(iter(tokens))) >= 5)
-    )
-    if name_hit:
+    if _name_present(lead.company_name, text, alnum):
         matched.append("name")
+    brand_name = getattr(brand, "name", None)
+    if brand_name and _name_present(brand_name, text, alnum):
+        matched.append("brand")
+    name_hit = "name" in matched or "brand" in matched
 
-    phone_hit = any(len(_digits(p)) >= 8 and _digits(p) in digits for p in (lead.phone or []))
+    phones = list(lead.phone or [])
+    if brand is not None:
+        phones += list(getattr(brand, "phone", None) or [])
+    phone_hit = any(len(_digits(p)) >= 8 and _digits(p) in digits for p in phones)
     if phone_hit:
         matched.append("phone")
 
-    email_hit = bool(lead.email and lead.email.lower() in text)
+    emails = [lead.email, getattr(brand, "email", None) if brand is not None else None]
+    email_hit = any(e and e.lower() in text for e in emails)
     if email_hit:
         matched.append("email")
 
@@ -244,18 +311,24 @@ def verify_ownership(lead: LeadToQualify, fetch: FetchResult, host: str, source:
     if geo_hit:
         matched.append("geo")
 
+    addresses = [lead.address, getattr(brand, "address", None) if brand is not None else None]
+    addr_hit = any(_street_match(a, spaced) for a in addresses)
+    if addr_hit:
+        matched.append("address")
+
     if cvr_hit:
         return 0.99, matched
 
-    corroborated = phone_hit or email_hit or geo_hit
+    corroborated = phone_hit or email_hit or geo_hit or addr_hit
+    trusted = source in _TRUSTED_SOURCES
     if name_hit:
         if corroborated:
             return 0.9, matched
-        if source == "email_domain":
-            return 0.85, matched  # domain came from their own email
+        if trusted:
+            return 0.85, matched  # domain came from their own email / production unit
         return 0.6, matched  # name-only: accept at the threshold
-    # No name and no CVR — only trust an email-domain host with corroboration.
-    if source == "email_domain" and corroborated:
+    # No name and no CVR — only trust a self-registered host with corroboration.
+    if trusted and corroborated:
         return 0.7, matched
     return 0.0, matched
 
@@ -269,20 +342,33 @@ class WebsiteDiscoverer:
         resolver: Resolver,
         *,
         brave: BraveSearchClient | None = None,
+        penhed_client: Any | None = None,
     ) -> None:
         self._fetcher = fetcher
         self._resolver = resolver
         self._brave = brave
+        self._penhed_client = penhed_client
 
     @classmethod
     def from_settings(
         cls, settings: Any, fetcher: WebsiteFetcher, resolver: Resolver, **kwargs: Any
     ) -> "WebsiteDiscoverer":
-        return cls(fetcher, resolver, brave=BraveSearchClient.from_settings(settings), **kwargs)
+        from ..cvr.penhed import EsPenhedClient  # local: keep cvr import lazy
+
+        return cls(
+            fetcher,
+            resolver,
+            brave=BraveSearchClient.from_settings(settings),
+            penhed_client=EsPenhedClient.from_settings(settings),
+            **kwargs,
+        )
 
     def close(self) -> None:
         if self._brave is not None:
             self._brave.close()
+        close = getattr(self._penhed_client, "close", None)
+        if callable(close):
+            close()
 
     def discover(self, lead: LeadToQualify) -> DiscoveryResult | None:
         seen: set[str] = set()
@@ -304,22 +390,65 @@ class WebsiteDiscoverer:
             if found:
                 return found
 
-        # Tier 2 — Brave web search (paid; only when configured).
-        if self._brave is not None and lead.company_name:
-            query = f'"{lead.company_name}"'
-            if lead.city:
-                query += f" {lead.city}"
-            hosts = self._brave.candidate_hosts(query)[:_MAX_SEARCH_CANDIDATES]
-            for host in hosts:
+        # Tier 1.5 — production unit (P-enhed): the storefront trading name +
+        # its own registered site/contact, which the company record lacks.
+        penhed = self._lookup_penhed(lead)
+        if penhed is not None:
+            # (a) the P-enhed's own registered site — the strongest brand signal.
+            penhed_host = _host_from_website(penhed.website)
+            if penhed_host and penhed_host not in seen:
+                seen.add(penhed_host)
+                found = self._try(lead, penhed_host, "penhed", brand=penhed)
+                if found:
+                    return found
+            # P-enhed's own email domain.
+            penhed_email_host = email_domain_candidate(penhed.email)
+            if penhed_email_host and penhed_email_host not in seen:
+                seen.add(penhed_email_host)
+                found = self._try(lead, penhed_email_host, "penhed", brand=penhed)
+                if found:
+                    return found
+            # (b) trading-name → domain guesses (verified via the brand name).
+            for host in name_domain_candidates(penhed.name):
                 if host in seen:
                     continue
                 seen.add(host)
-                found = self._try(lead, host, "search")
+                found = self._try(lead, host, "penhed", brand=penhed)
                 if found:
                     return found
+
+        # Tier 2 — Brave web search (paid; only when configured). Search on the
+        # trading name when we have one — that's what the storefront ranks under.
+        if self._brave is not None:
+            brand_name = penhed.name if penhed is not None else None
+            query_name = brand_name or lead.company_name
+            if query_name:
+                query = f'"{query_name}"'
+                city = lead.city or (penhed.city if penhed is not None else None)
+                if city:
+                    query += f" {city}"
+                hosts = self._brave.candidate_hosts(query)[:_MAX_SEARCH_CANDIDATES]
+                for host in hosts:
+                    if host in seen:
+                        continue
+                    seen.add(host)
+                    found = self._try(lead, host, "search", brand=penhed)
+                    if found:
+                        return found
         return None
 
-    def _try(self, lead: LeadToQualify, host: str, source: str) -> DiscoveryResult | None:
+    def _lookup_penhed(self, lead: LeadToQualify) -> Any | None:
+        """Best-effort production-unit fetch (never raises into discovery)."""
+        if self._penhed_client is None or not lead.pnummer:
+            return None
+        try:
+            return self._penhed_client.fetch_by_pnummer(lead.pnummer)
+        except Exception:
+            return None
+
+    def _try(
+        self, lead: LeadToQualify, host: str, source: str, *, brand: Any | None = None
+    ) -> DiscoveryResult | None:
         """DNS → fetch → screen → verify one candidate host."""
         host = _strip_www(host.lower().strip("."))
         if _is_directory(host):
@@ -335,7 +464,7 @@ class WebsiteDiscoverer:
             fetch = self._fetcher.fetch(url)
         except Exception:
             return None
-        if fetch.failed or classify_from_fetch(fetch) is not None:
+        if fetch is None or fetch.failed or classify_from_fetch(fetch) is not None:
             return None  # dead / parked / marketplace
 
         final_host = _strip_www(
@@ -348,7 +477,7 @@ class WebsiteDiscoverer:
         if is_not_independent(final_host, fetch.final_url, lead.company_name):
             return None
 
-        confidence, matched = verify_ownership(lead, fetch, final_host, source)
+        confidence, matched = verify_ownership(lead, fetch, final_host, source, brand=brand)
         if confidence < _ACCEPT_THRESHOLD:
             return None
         return DiscoveryResult(
@@ -358,4 +487,5 @@ class WebsiteDiscoverer:
             confidence=confidence,
             matched=matched,
             fetch=fetch,
+            brand_name=getattr(brand, "name", None) if "brand" in matched else None,
         )

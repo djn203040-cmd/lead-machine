@@ -11,6 +11,12 @@ class Settings(BaseSettings):
 
     # CVR Elasticsearch (free creds via cvrselvbetjening@erst.dk)
     cvr_es_url: str = "http://distribution.virk.dk/cvr-permanent/virksomhed/_search"
+    # Production-unit (produktionsenhed) index — same host/creds, different index.
+    # Carries the storefront trading name ("Noribar") + its own site/contact,
+    # which the company (Vrvirksomhed) record often lacks.
+    cvr_es_penhed_url: str = (
+        "http://distribution.virk.dk/cvr-permanent/produktionsenhed/_search"
+    )
     cvr_es_user: str = ""
     cvr_es_password: str = ""
 

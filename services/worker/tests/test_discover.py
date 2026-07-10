@@ -82,6 +82,44 @@ def test_verify_rejects_unrelated_page() -> None:
     assert conf < 0.6
 
 
+# A storefront site that names the brand ("Noribar") + its address, never the
+# operating company ("Kakurega ApS").
+BRAND_HTML = (
+    "<html><head><title>Noribar</title></head><body>"
+    "<h1>Noribar</h1><p>Skt. Clemens Stræde 7, 8000 Aarhus C</p></body></html>"
+)
+
+
+def test_verify_via_brand_name_and_address() -> None:
+    lead = LeadToQualify("L", None, "Kakurega ApS", address="Skt. Clemens Stræde 7")
+    brand = SimpleNamespace(name="Noribar", phone=[], email=None, address=None)
+    conf, matched = verify_ownership(
+        lead, _fetch("https://noribar.dk/", BRAND_HTML), "noribar.dk", "penhed", brand=brand
+    )
+    assert conf >= 0.9  # brand name + street address
+    assert "brand" in matched and "address" in matched
+    assert "name" not in matched  # the company name never appears
+
+
+def test_verify_penhed_name_only_accepts_at_threshold() -> None:
+    lead = LeadToQualify("L", None, "Kakurega ApS")  # no address to corroborate
+    brand = SimpleNamespace(name="Noribar", phone=[], email=None, address=None)
+    html = "<html><body><h1>Noribar</h1></body></html>"
+    conf, matched = verify_ownership(
+        lead, _fetch("https://noribar.dk/", html), "noribar.dk", "penhed", brand=brand
+    )
+    assert conf >= 0.6  # trusted source (penhed) + brand name → accept
+    assert "brand" in matched
+
+
+def test_verify_street_match_ignores_house_number() -> None:
+    from leadmachine.website.discover import _street_name
+
+    assert _street_name("Skt. Clemens Stræde 7, 2. th") == "skt clemens straede"
+    assert _street_name("Bagergade 1") == "bagergade"
+    assert _street_name(None) == ""
+
+
 # --- orchestrator ----------------------------------------------------------
 def test_discover_finds_via_email_domain() -> None:
     fetcher = StubFetcher(_fetch("https://bagermartin.dk/", OWNED_HTML))
@@ -118,6 +156,52 @@ def test_discover_skips_dead_domain() -> None:
     lead = LeadToQualify("L", None, "Bager Martin ApS", email="info@bagermartin.dk")
     assert disc.discover(lead) is None
     assert fetcher.fetched == []  # never fetched — DNS short-circuited
+
+
+class _StubPenhed:
+    """Returns a canned PenhedInfo-shaped object for any pNummer."""
+
+    def __init__(self, info: Any) -> None:
+        self.info = info
+        self.requested: list[Any] = []
+
+    def fetch_by_pnummer(self, pnummer: Any) -> Any:
+        self.requested.append(pnummer)
+        return self.info
+
+
+def test_discover_via_penhed_website() -> None:
+    # The operating company has no email/name match; the storefront site is only
+    # reachable via the production unit's trading name + registered website.
+    brand = SimpleNamespace(
+        name="Noribar",
+        website="www.noribar.dk",
+        email=None,
+        phone=[],
+        address="Skt. Clemens Stræde 7",
+        city="Aarhus C",
+    )
+    fetcher = StubFetcher({"https://noribar.dk/": _fetch("https://noribar.dk/", BRAND_HTML)})
+    penhed = _StubPenhed(brand)
+    disc = WebsiteDiscoverer(fetcher, FakeResolver(), penhed_client=penhed)
+    lead = LeadToQualify(
+        "L", None, "Kakurega ApS", address="Skt. Clemens Stræde 7", pnummer="1024698951"
+    )
+
+    found = disc.discover(lead)
+    assert found is not None
+    assert found.source == "penhed"
+    assert found.host == "noribar.dk"
+    assert found.brand_name == "Noribar"
+    assert penhed.requested == ["1024698951"]
+
+
+def test_discover_penhed_skipped_without_pnummer() -> None:
+    penhed = _StubPenhed(SimpleNamespace(name="Noribar", website="www.noribar.dk"))
+    disc = WebsiteDiscoverer(StubFetcher(_fetch("https://x.dk/", UNRELATED_HTML)), FakeResolver(), penhed_client=penhed)
+    lead = LeadToQualify("L", None, "Kakurega ApS")  # no pnummer
+    assert disc.discover(lead) is None
+    assert penhed.requested == []  # never looked up
 
 
 # --- Brave client ----------------------------------------------------------

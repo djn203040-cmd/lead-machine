@@ -272,6 +272,9 @@ export default async function LeadDetailPage({
                 {lead.website_source && (
                   <Field label="Kilde" value={websiteSourceLabel(lead.website_source)} />
                 )}
+                {web.discovery?.brand_name && (
+                  <Field label="Butiksnavn" value={web.discovery.brand_name} />
+                )}
                 {lead.discovered_url && (
                   <Field
                     label="Fundet URL"

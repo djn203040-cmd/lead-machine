@@ -44,6 +44,7 @@ export const WEBSITE_SOURCE_META: Record<string, string> = {
   cvr: "CVR-registreret",
   email_domain: "Fundet via e-mail-domæne",
   name_guess: "Fundet via firmanavn",
+  penhed: "Fundet via P-enhed (butiksnavn)",
   search: "Fundet via websøgning",
 };
 
