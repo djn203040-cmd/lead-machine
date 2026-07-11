@@ -189,9 +189,18 @@ def test_gate_inactive_status() -> None:
 
 
 def test_gate_allows_active_and_missing_status() -> None:
-    assert gate_reason(False, "NORMAL") is None
-    assert gate_reason(False, "aktiv") is None  # case-insensitive
-    assert gate_reason(False, None) is None  # missing is not gated
+    ph = ["12345678"]
+    assert gate_reason(False, "NORMAL", ph) is None
+    assert gate_reason(False, "aktiv", ph) is None  # case-insensitive
+    assert gate_reason(False, None, ph) is None  # missing status is not gated
+
+
+def test_gate_no_phone_disqualifies() -> None:
+    assert gate_reason(False, "NORMAL", []) == "no_phone"
+    assert gate_reason(False, "NORMAL", None) == "no_phone"
+    # Compliance gates still take precedence over the phone gate.
+    assert gate_reason(True, "NORMAL", []) == "reklamebeskyttet"
+    assert gate_reason(False, "OPHØRT", []) == "inactive"
 
 
 # --- score_lead end-to-end -------------------------------------------------
@@ -203,6 +212,7 @@ def _ideal_lead(**kw) -> LeadToScore:
         employees_exact=12,
         founded_at="2024-06-01",
         cvr_status="NORMAL",
+        phone=["12345678"],
         social={"has_fb_page": True, "has_meta_pixel": True},
         financial={"gross_profit": 500_000, "equity": 200_000},
     )
@@ -275,7 +285,7 @@ def test_run_scoring_tallies_and_persists() -> None:
     leads = [
         _ideal_lead(lead_id="A"),
         _ideal_lead(lead_id="B", reklamebeskyttet=True),  # gated
-        LeadToScore(lead_id="C", website_need="unknown"),  # sparse, still scores
+        LeadToScore(lead_id="C", website_need="unknown", phone=["12345678"]),  # sparse, still scores
     ]
     stats = run_scoring(leads, writer, weights=W, today=TODAY)
 

@@ -143,18 +143,24 @@ def _clamp(value: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, value))
 
 
-def gate_reason(reklamebeskyttet: bool, cvr_status: str | None) -> str | None:
+def gate_reason(
+    reklamebeskyttet: bool, cvr_status: str | None, phone: list[str] | None = None
+) -> str | None:
     """Why a lead must score 0 (hard gate), or ``None`` to score normally.
 
-    Discovery already suppresses these, but we gate defensively. A *missing*
-    status is not gated (it would zero otherwise-valid leads); only an
-    explicitly non-active status is.
+    Discovery already suppresses reklamebeskyttet/inactive, but we gate
+    defensively. A *missing* status is not gated (it would zero otherwise-valid
+    leads); only an explicitly non-active status is. **No phone number** hard-
+    gates too: outreach is phone-first, so an uncallable lead is disqualified
+    (we hunt CVR → P-enhed → website for a number before this runs).
     """
     if reklamebeskyttet:
         return "reklamebeskyttet"
     status = (cvr_status or "").strip().upper()
     if status and status not in ACTIVE_STATUSES:
         return "inactive"
+    if not phone:
+        return "no_phone"
     return None
 
 

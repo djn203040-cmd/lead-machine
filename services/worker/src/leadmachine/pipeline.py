@@ -121,6 +121,76 @@ def qualify_leads(
             grader.close()
 
 
+def find_missing_phones(
+    db: Client,
+    settings: Settings,
+    *,
+    limit: int,
+    lead_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Recover a phone number for leads that have none (CVR left it blank).
+
+    Phone-first outreach means a lead with no number is disqualified, so we try
+    hard before giving up: scrape the business's own site (registered or
+    discovered), then fall back to its production unit's registered number.
+    Writes any recovered numbers to ``leads.phone``. Best-effort per lead —
+    errors never fail the batch.
+    """
+    from .cvr.penhed import EsPenhedClient, current_pnummer
+    from .website import HttpxFetcher, extract_phones, normalize_phone
+    from .website.resolve import resolve_website
+
+    query = (
+        db.table("leads")
+        .select("id,phone,website,discovered_url,cvr_number,lead_enrichment(cvr)")
+        .not_.is_("cvr_number", "null")
+    )
+    res = _scope(query, lead_ids).limit(limit).execute()
+    # Only leads that currently have no usable number.
+    rows = [r for r in (res.data or []) if not [p for p in (r.get("phone") or []) if normalize_phone(p)]]
+
+    stats = {"seen": len(rows), "recovered": 0, "from_website": 0, "from_penhed": 0}
+    if not rows:
+        return stats
+
+    fetcher = HttpxFetcher()
+    penhed_client = EsPenhedClient.from_settings(settings)
+    try:
+        for r in rows:
+            phones: list[str] = []
+            # 1. The business's own site (discovered wins; else the CVR field).
+            site = r.get("discovered_url") or (resolve_website(r.get("website")).url)
+            if site:
+                try:
+                    fetch = fetcher.fetch(site)
+                    if fetch and not fetch.failed:
+                        phones = extract_phones(fetch.html, exclude=(r.get("cvr_number"),))
+                except Exception:
+                    phones = []
+                if phones:
+                    stats["from_website"] += 1
+            # 2. Fall back to the production unit's registered number.
+            if not phones and penhed_client is not None:
+                pnummer = current_pnummer((_one(r.get("lead_enrichment")) or {}).get("cvr"))
+                if pnummer:
+                    try:
+                        info = penhed_client.fetch_by_pnummer(pnummer)
+                    except Exception:
+                        info = None
+                    if info and info.phone:
+                        phones = [normalize_phone(p) or p for p in info.phone if normalize_phone(p)]
+                        if phones:
+                            stats["from_penhed"] += 1
+            if phones:
+                db.table("leads").update({"phone": phones}).eq("id", r["id"]).execute()
+                stats["recovered"] += 1
+    finally:
+        fetcher.close()
+        if penhed_client is not None:
+            penhed_client.close()
+    return stats
+
+
 def enrich_financial_leads(
     db: Client,
     settings: Settings,
@@ -171,7 +241,7 @@ def score_leads(
 
     query = db.table("leads").select(
         "id,website_need,branchekode,employees_band,employees_exact,founded_at,"
-        "cvr_status,reklamebeskyttet,lead_enrichment(website,social,financial)"
+        "cvr_status,reklamebeskyttet,phone,lead_enrichment(website,social,financial)"
     )
     if only_qualified:
         query = query.neq("website_need", "unknown")
@@ -190,6 +260,7 @@ def score_leads(
                 founded_at=row.get("founded_at"),
                 cvr_status=row.get("cvr_status"),
                 reklamebeskyttet=bool(row.get("reklamebeskyttet")),
+                phone=list(row.get("phone") or []),
                 website=enr.get("website") or {},
                 social=enr.get("social") or {},
                 financial=enr.get("financial") or {},
@@ -215,7 +286,7 @@ def generate_angles(
         db.table("leads")
         .select(
             "id,company_name,city,branche_text,website_need,employees_band,employees_exact,"
-            "score,lead_enrichment(website,social,financial),lead_scores(breakdown),"
+            "score,phone,lead_enrichment(website,social,financial),lead_scores(breakdown),"
             "lead_angles(lead_id)"
         )
         .neq("website_need", "unknown")
@@ -225,6 +296,9 @@ def generate_angles(
     leads = []
     for row in res.data or []:
         if only_missing and _one(row.get("lead_angles")):
+            continue
+        # Phone-first: don't spend a Claude call pitching a lead we can't call.
+        if not (row.get("phone") or []):
             continue
         enr = _one(row.get("lead_enrichment")) or {}
         scores = _one(row.get("lead_scores")) or {}
@@ -264,6 +338,8 @@ def enrich_queued(db: Client, settings: Settings, *, limit: int = 200) -> dict[s
     try:
         n = len(ids)
         qualify = qualify_leads(db, settings, limit=n, only_unknown=True, lead_ids=ids)
+        # Hunt for a phone before scoring — a lead with none is disqualified.
+        phones = find_missing_phones(db, settings, limit=n, lead_ids=ids)
         financial = enrich_financial_leads(db, settings, limit=n, lead_ids=ids)
         scored = score_leads(db, settings, limit=n, only_qualified=True, lead_ids=ids)
         angles = generate_angles(db, settings, limit=n, only_missing=True, lead_ids=ids)
@@ -276,6 +352,7 @@ def enrich_queued(db: Client, settings: Settings, *, limit: int = 200) -> dict[s
         "queued": len(ids),
         "enriched": len(ids),
         "qualify": qualify.as_dict(),
+        "phones": phones,
         "financial": financial.as_dict(),
         "score": scored.as_dict(),
         "angles": angles.as_dict(),

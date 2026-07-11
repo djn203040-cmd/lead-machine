@@ -52,7 +52,7 @@ def score_lead(
     w = weights or Weights()
     today = today or date.today()
 
-    reason = gate_reason(lead.reklamebeskyttet, lead.cvr_status)
+    reason = gate_reason(lead.reklamebeskyttet, lead.cvr_status, lead.phone)
     if reason is not None:
         return ScoreBreakdown(total=0, gated=True, gate_reason=reason)
 

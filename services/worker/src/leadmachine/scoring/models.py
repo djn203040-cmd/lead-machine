@@ -29,6 +29,8 @@ class LeadToScore:
     founded_at: str | None = None  # ISO date "YYYY-MM-DD"
     cvr_status: str | None = None
     reklamebeskyttet: bool = False
+    # Phone-first outreach: a lead with no number is disqualified (hard-gated).
+    phone: list[str] = field(default_factory=list)
     website: dict[str, Any] = field(default_factory=dict)  # lead_enrichment.website
     social: dict[str, Any] = field(default_factory=dict)  # lead_enrichment.social
     financial: dict[str, Any] = field(default_factory=dict)  # lead_enrichment.financial

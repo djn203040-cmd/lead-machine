@@ -168,6 +168,28 @@ def angles(
     typer.echo(json.dumps(stats.as_dict(), indent=2))
 
 
+@app.command(name="find-phones")
+def find_phones_cmd(
+    limit: int = typer.Option(500, help="Max phone-less leads to process in this run."),
+) -> None:
+    """Recover a phone number for leads that have none (website scrape → P-enhed).
+
+    Phone-first outreach means a lead with no number is disqualified, so this
+    runs as part of enrichment; use this command to backfill an existing book.
+    """
+    from .config import settings
+    from .db import get_client
+    from .jobs import JobRun
+    from .pipeline import find_missing_phones
+
+    db = get_client()
+    with JobRun(db, "find-phones", payload={"limit": limit}) as job:
+        result = find_missing_phones(db, settings, limit=limit)
+        job.result = result
+
+    typer.echo(json.dumps(result, indent=2))
+
+
 @app.command(name="enrich-queued")
 def enrich_queued_cmd(
     limit: int = typer.Option(200, help="Max queued leads per batch."),

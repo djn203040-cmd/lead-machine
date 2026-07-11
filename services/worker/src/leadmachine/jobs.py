@@ -28,6 +28,7 @@ JOB_TYPES = {
     "enrich-financial": "enrich_financial",
     "score": "score",
     "angles": "angle",
+    "find-phones": "find_phones",
     "screen": "robinson",
     "enrich-queued": "enrich_queued",
 }

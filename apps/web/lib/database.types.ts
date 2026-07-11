@@ -276,6 +276,7 @@ export type Database = {
           employees_exact: number | null
           enrichment_status: string
           founded_at: string | null
+          has_phone: boolean
           id: string
           is_archived: boolean
           is_sole_trader: boolean

@@ -59,10 +59,12 @@ export default async function LeadsPage({
     .eq("is_archived", false)
     .eq("suppressed", false); // Robinson-listed / suppressed leads are never shown for outreach
 
-  // Split enriched leads (default, outreach-ready) from everything else.
+  // Split enriched leads (default, outreach-ready) from everything else. An
+  // enriched lead with no phone is disqualified (phone-first outreach) and
+  // hidden from the working list — we've already tried CVR → P-enhed → website.
   query =
     view === "enriched"
-      ? query.eq("enrichment_status", "enriched")
+      ? query.eq("enrichment_status", "enriched").eq("has_phone", true)
       : query.neq("enrichment_status", "enriched");
 
   if (filters.q) query = query.ilike("company_name", `%${filters.q}%`);
