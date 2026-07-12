@@ -39,6 +39,39 @@ _STOP_TOKENS: frozenset[str] = frozenset(
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _MIN_SLUG_LEN = 5  # below this we can't match a name confidently
 
+# Non-distinctive tokens: trade words + Danish city/place names. A name made up
+# ONLY of these ("København Frisør", "Tandlægerne i Centrum") identifies a
+# *category*, not a *business* — any competitor's site matches it — so a bare
+# name-match from web search on such a name isn't trustworthy without a hard
+# corroborator (CVR/phone/address). Kept separate from _STOP_TOKENS because
+# these ARE worth guessing/searching on, just not verifying on alone.
+_GENERIC_TOKENS: frozenset[str] = frozenset(
+    {
+        # trades
+        "frisoer", "frisor", "frisoersalon", "salon", "salonen", "barber", "klip",
+        "tandlaege", "tandlaegen", "tandlaegerne", "tandlaegeselskabet", "tandklinik",
+        "laege", "laegen", "laegerne", "laegehus", "laegehuset", "laegeklinik",
+        "laegeklinikken", "klinik", "klinikken", "speciallaege", "fysioterapi",
+        "kiropraktor", "kiropraktik", "kiropraktisk", "apotek", "apoteket", "optik",
+        "optiker", "dyreklinik", "dyrehospital", "dyrlaege", "oejenklinik", "oejenlaege",
+        "restauration", "restaurationen", "cafeen", "cafeteria", "pizza", "pizzeria",
+        "grill", "grillen", "grillbar", "sushi", "kebab", "shawarma", "burger",
+        "bageri", "bageren", "konditori", "kroen", "bodega", "pub", "vinbar",
+        "spisested", "spisestedet", "smoerrebroed", "slagter", "slagteren", "blomster",
+        "kiosk", "kiosken", "cut", "hair", "beauty", "wellness", "massage",
+        # cities / places
+        "koebenhavn", "kobenhavn", "cph", "frederiksberg", "aarhus", "arhus", "odense",
+        "aalborg", "esbjerg", "randers", "kolding", "horsens", "vejle", "roskilde",
+        "herning", "hoersholm", "silkeborg", "naestved", "fredericia", "viborg",
+        "koege", "holstebro", "taastrup", "slagelse", "hilleroed", "helsingoer",
+        "soenderborg", "svendborg", "hjoerring", "holbaek", "soroe", "ringsted",
+        "glostrup", "ballerup", "gladsaxe", "hvidovre", "greve", "vejen",
+        # geographic generics
+        "centrum", "city", "midtby", "bymidten", "torv", "torvet", "hovedgaden",
+        "noerrebro", "oesterbro", "vesterbro", "amager", "sydhavn", "sydhavnen",
+    }
+)
+
 # Danish CVR names often append the owner: "Frisør X v/Anna Hansen",
 # "Tandlægerne i Centrum V/Lars Weltzer", "KJ Minh /Vu Nguyen". The storefront
 # site rarely repeats the owner's personal name, so we strip that suffix before
@@ -84,6 +117,18 @@ def business_key(company_name: str | None) -> tuple[set[str], str]:
     significant = {t for t in tokens if len(t) >= 3}
     slug = "".join(tokens)
     return significant, slug
+
+
+def is_distinctive(company_name: str | None) -> bool:
+    """Whether a name identifies *a business*, not just a category+place.
+
+    ``"København Frisør"`` / ``"Tandlægerne i Centrum"`` are only generic trade +
+    city words → any competitor's site matches them, so a bare web-search
+    name-match isn't trustworthy. ``"Noribar"`` / ``"La Cabra"`` / ``"Det Glade
+    Vanvid"`` keep a distinctive token → trustworthy.
+    """
+    tokens, _ = business_key(company_name)
+    return any(t not in _GENERIC_TOKENS for t in tokens)
 
 
 def _alnum(text: str) -> str:

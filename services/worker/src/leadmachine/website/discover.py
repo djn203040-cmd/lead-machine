@@ -28,7 +28,13 @@ from urllib.parse import urlsplit
 
 from .domain import Resolver, classify_from_fetch
 from .fetch import WebsiteFetcher
-from .independence import business_key, is_not_independent, search_name, strip_owner_suffix
+from .independence import (
+    business_key,
+    is_distinctive,
+    is_not_independent,
+    search_name,
+    strip_owner_suffix,
+)
 from .models import DiscoveryResult, FetchResult, LeadToQualify
 
 # Consumer mailbox providers — an @gmail.com address tells us nothing about a
@@ -54,6 +60,12 @@ DIRECTORY_HOSTS: frozenset[str] = frozenset(
         "google.com", "google.dk", "maps.google.com", "wikipedia.org",
         "yelp.com", "foursquare.com", "tripadvisor.com", "tripadvisor.dk",
         "wolt.com", "just-eat.dk", "just-eat.com", "booking.com", "amazon.com",
+        # Local/vertical directories + booking portals that list many separate
+        # businesses (with address/phone) — a listing there is not the firm's
+        # own site. Extend as new ones surface.
+        "frisorfinder.dk", "spiseguidenaarhus.dk", "noerrebro-shopping.dk",
+        "spillehalleraarhus.dk", "setmore.com", "bookinghero.io", "booking.dk",
+        "sundhed.dk", "1klik.dk", "trustpilot.dk",
     }
 )
 
@@ -318,7 +330,12 @@ def verify_ownership(
             return 0.9, matched
         if trusted:
             return 0.85, matched  # domain came from their own email / production unit
-        return 0.6, matched  # name-only: accept at the threshold
+        # Name-only, untrusted source (search / name-guess): only accept when the
+        # name is distinctive. A generic category+place name ("København Frisør")
+        # matches any competitor's site, so require a hard corroborator instead.
+        if is_distinctive(lead.company_name) or (brand_name and is_distinctive(brand_name)):
+            return 0.6, matched
+        return 0.0, matched
     # No name and no CVR — only trust a self-registered host with corroboration.
     if trusted and corroborated:
         return 0.7, matched

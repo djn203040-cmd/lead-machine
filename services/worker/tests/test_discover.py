@@ -102,6 +102,43 @@ def test_verify_name_plus_geo() -> None:
     assert "name" in matched and "geo" in matched
 
 
+def test_is_distinctive() -> None:
+    from leadmachine.website.independence import is_distinctive
+
+    assert not is_distinctive("København Frisør v/Azad Salahi")  # city + trade
+    assert not is_distinctive("Tandlægerne i Centrum")  # trade + place
+    assert not is_distinctive("FRISØRSALON")  # bare trade
+    assert is_distinctive("Det Glade Vanvid, Aarhus ApS")  # "glade"/"vanvid" distinctive
+    assert is_distinctive("LA CABRA Aarhus ApS")  # "cabra" distinctive
+    assert is_distinctive("Noribar")
+
+
+def test_verify_rejects_generic_name_only_search_match() -> None:
+    # A generic city+trade name matched on a page by name alone (no address/
+    # phone/geo) from web search must be rejected — any frisør site matches.
+    lead = LeadToQualify("L", None, "København Frisør v/Azad Salahi")
+    html = "<html><body><h1>P Nørgaard · Frisør i København</h1></body></html>"
+    conf, _ = verify_ownership(lead, _fetch("https://pnoergaard.dk/", html), "pnoergaard.dk", "search")
+    assert conf < 0.6
+
+
+def test_verify_accepts_distinctive_name_only_search_match() -> None:
+    lead = LeadToQualify("L", None, "Det Glade Vanvid, Aarhus ApS")
+    html = "<html><body><h1>Det Glade Vanvid</h1><p>Besøg os i Aarhus</p></body></html>"
+    conf, matched = verify_ownership(
+        lead, _fetch("https://detgladevanvid.dk/", html), "detgladevanvid.dk", "search"
+    )
+    assert conf >= 0.6 and "name" in matched
+
+
+def test_directory_hosts_rejected() -> None:
+    from leadmachine.website.discover import _is_directory
+
+    assert _is_directory("frisorfinder.dk")
+    assert _is_directory("spiseguidenaarhus.dk")
+    assert _is_directory("aafrobarber7365.setmore.com")  # subdomain of a portal
+
+
 def test_verify_rejects_unrelated_page() -> None:
     lead = LeadToQualify("L", None, "Bager Martin ApS")
     conf, _ = verify_ownership(
