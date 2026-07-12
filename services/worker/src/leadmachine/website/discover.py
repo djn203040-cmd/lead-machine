@@ -28,7 +28,7 @@ from urllib.parse import urlsplit
 
 from .domain import Resolver, classify_from_fetch
 from .fetch import WebsiteFetcher
-from .independence import business_key, is_not_independent
+from .independence import business_key, is_not_independent, search_name, strip_owner_suffix
 from .models import DiscoveryResult, FetchResult, LeadToQualify
 
 # Consumer mailbox providers — an @gmail.com address tells us nothing about a
@@ -60,10 +60,10 @@ DIRECTORY_HOSTS: frozenset[str] = frozenset(
 _TLDS = (".dk", ".com")
 _DIGITS_RE = re.compile(r"\d+")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
-_HOUSE_RE = re.compile(r"^\d+[a-z]?$")  # a house-number token: "7", "12b"
+_HOUSE_RE = re.compile(r"^\d+(?:[-–]\d+)?[a-z]?$")  # house number: "7", "12b", "5-7"
 _ACCEPT_THRESHOLD = 0.6  # minimum ownership confidence to attach a discovered site
 _MAX_NAME_CANDIDATES = 4
-_MAX_SEARCH_CANDIDATES = 6
+_MAX_SEARCH_CANDIDATES = 4
 # Sources whose provenance is trustworthy enough to accept a name-only match, or
 # a corroborated match with no name at all (the domain came from the business's
 # own registered email / production unit).
@@ -155,7 +155,8 @@ def name_domain_candidates(company_name: str | None) -> list[str]:
     from .independence import _TOKEN_RE, _STOP_TOKENS  # local: internal helpers
 
     ordered = [
-        t for t in _TOKEN_RE.findall(_normalize(company_name or "")) if t not in _STOP_TOKENS
+        t for t in _TOKEN_RE.findall(_normalize(strip_owner_suffix(company_name)))
+        if t not in _STOP_TOKENS
     ]
     bases: list[str] = []
     if slug:
@@ -187,7 +188,9 @@ class BraveSearchClient:
         self.api_key = api_key
         self.count = count
         self._owns_client = http_client is None
-        self._client = http_client or httpx.Client(timeout=httpx.Timeout(15.0, connect=8.0))
+        # Tight timeout, single attempt (see candidate_hosts): a slow/failed
+        # search must not stall the per-lead pipeline — better to skip it.
+        self._client = http_client or httpx.Client(timeout=httpx.Timeout(8.0, connect=5.0))
 
     @classmethod
     def from_settings(cls, settings: Any, **kwargs: Any) -> "BraveSearchClient | None":
@@ -206,8 +209,11 @@ class BraveSearchClient:
             "X-Subscription-Token": self.api_key,
         }
         params = {"q": query, "country": "dk", "search_lang": "da", "count": self.count}
+        # Single attempt (no retry storm): a slow search shouldn't stall the lead.
         try:
-            data = request_json_get(self._client, self.ENDPOINT, params=params, headers=headers)
+            resp = self._client.get(self.ENDPOINT, params=params, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
         except Exception:
             return []
         results = ((data.get("web") or {}).get("results")) or []
@@ -221,20 +227,6 @@ class BraveSearchClient:
             seen.add(host)
             hosts.append(host)
         return hosts
-
-
-def request_json_get(client: Any, url: str, *, params: dict, headers: dict) -> dict:
-    """GET JSON with the shared retry policy (params/headers on the request)."""
-    from .._http import _RETRY  # reuse the retry config
-    from tenacity import retry
-
-    @retry(**_RETRY)
-    def _do() -> dict:
-        resp = client.get(url, params=params, headers=headers)
-        resp.raise_for_status()
-        return resp.json()
-
-    return _do()
 
 
 # --- ownership verification ------------------------------------------------
@@ -421,9 +413,11 @@ class WebsiteDiscoverer:
         # trading name when we have one — that's what the storefront ranks under.
         if self._brave is not None:
             brand_name = penhed.name if penhed is not None else None
-            query_name = brand_name or lead.company_name
+            # Search the cleaned name (no owner suffix / legal form) — the full
+            # legal string ("… V/Lars Weltzer ApS") tanks web-search recall.
+            query_name = brand_name or search_name(lead.company_name)
             if query_name:
-                query = f'"{query_name}"'
+                query = query_name
                 city = lead.city or (penhed.city if penhed is not None else None)
                 if city:
                     query += f" {city}"

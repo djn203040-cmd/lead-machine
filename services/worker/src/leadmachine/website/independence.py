@@ -39,6 +39,25 @@ _STOP_TOKENS: frozenset[str] = frozenset(
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _MIN_SLUG_LEN = 5  # below this we can't match a name confidently
 
+# Danish CVR names often append the owner: "Frisør X v/Anna Hansen",
+# "Tandlægerne i Centrum V/Lars Weltzer", "KJ Minh /Vu Nguyen". The storefront
+# site rarely repeats the owner's personal name, so we strip that suffix before
+# matching/guessing — otherwise the extra name tokens block an otherwise-clean
+# match. Only the unambiguous "v/", "v." and " /Owner" markers are cut.
+_OWNER_SUFFIX_RE = re.compile(r"(?i)\s+v[/.].*$|\s+/\s*\S.*$")
+# Legal-form suffix, dropped from a name used as a web-search query.
+_LEGAL_FORM_RE = re.compile(r"(?i)\s+(?:aps|a/s|i/s|ivs|k/s|p/s|s/i|smba|amba|fmba|g/s)\b\.?")
+
+
+def strip_owner_suffix(name: str | None) -> str:
+    """Drop a trailing ``v/<owner>`` (or ``/<owner>``) personal-name suffix."""
+    return _OWNER_SUFFIX_RE.sub("", name or "").strip()
+
+
+def search_name(company_name: str | None) -> str:
+    """A cleaned business name for a web search — no owner suffix, no legal form."""
+    return _LEGAL_FORM_RE.sub("", strip_owner_suffix(company_name)).strip()
+
 
 def _normalize(text: str) -> str:
     """Lowercase + fold Danish/diacritic letters to their ASCII web spelling."""
@@ -60,6 +79,7 @@ def business_key(company_name: str | None) -> tuple[set[str], str]:
     """
     if not company_name:
         return set(), ""
+    company_name = strip_owner_suffix(company_name)
     tokens = [t for t in _TOKEN_RE.findall(_normalize(company_name)) if t not in _STOP_TOKENS]
     significant = {t for t in tokens if len(t) >= 3}
     slug = "".join(tokens)

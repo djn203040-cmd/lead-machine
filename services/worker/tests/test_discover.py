@@ -57,6 +57,34 @@ def test_name_domain_candidates_too_generic() -> None:
     assert name_domain_candidates("ApS Holding") == []
 
 
+# --- owner-suffix stripping ------------------------------------------------
+def test_strip_owner_suffix() -> None:
+    from leadmachine.website.independence import search_name, strip_owner_suffix
+
+    assert strip_owner_suffix("TANDLÆGERNE I CENTRUM V/LARS WELTZER ApS") == "TANDLÆGERNE I CENTRUM"
+    assert strip_owner_suffix("Casa Frisør v/Camilla From Vedsted") == "Casa Frisør"
+    assert strip_owner_suffix("KJ MINH /Vu Minh Nguyen") == "KJ MINH"
+    assert strip_owner_suffix("LA CABRA Aarhus ApS") == "LA CABRA Aarhus ApS"  # no owner marker
+    # search_name also drops the legal form.
+    assert search_name("TANDLÆGERNE I CENTRUM V/LARS WELTZER ApS") == "TANDLÆGERNE I CENTRUM"
+
+
+def test_verify_owner_named_company_matches_on_business_name() -> None:
+    # A dentist site names the practice but never the owner "Lars Weltzer".
+    lead = LeadToQualify(
+        "L", None, "TANDLÆGERNE I CENTRUM V/LARS WELTZER ApS", address="Algade 5-7"
+    )
+    html = (
+        "<html><body><h1>Tandlægerne i Centrum</h1>"
+        "<p>Algade 5-7, 4000 Roskilde</p></body></html>"
+    )
+    conf, matched = verify_ownership(
+        lead, _fetch("https://tandicentrum.dk/", html), "tandicentrum.dk", "search"
+    )
+    assert conf >= 0.9  # business name + address, owner suffix ignored
+    assert "name" in matched and "address" in matched
+
+
 # --- ownership verification ------------------------------------------------
 def test_verify_cvr_is_definitive() -> None:
     lead = LeadToQualify("L", None, "Andet Navn", cvr_number="12345678")
