@@ -109,6 +109,9 @@ class LeadToQualify:
     address: str | None = None  # street line, for address-match verification
     # Production-unit number: unlocks the storefront trading name + its own site.
     pnummer: str | None = None
+    # Registered secondary names (CVR ``binavne``) — often the trading name the
+    # storefront + its website actually use (THYGESEN & THALLAUG → MellemRum).
+    binavne: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

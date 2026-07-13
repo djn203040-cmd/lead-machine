@@ -30,6 +30,7 @@ from .domain import Resolver, classify_from_fetch
 from .fetch import WebsiteFetcher
 from .independence import (
     business_key,
+    full_slug,
     is_distinctive,
     is_not_independent,
     search_name,
@@ -74,8 +75,9 @@ _DIGITS_RE = re.compile(r"\d+")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _HOUSE_RE = re.compile(r"^\d+(?:[-–]\d+)?[a-z]?$")  # house number: "7", "12b", "5-7"
 _ACCEPT_THRESHOLD = 0.6  # minimum ownership confidence to attach a discovered site
-_MAX_NAME_CANDIDATES = 4
+_MAX_NAME_CANDIDATES = 6  # room for the full-slug variant alongside the short one
 _MAX_SEARCH_CANDIDATES = 4
+_MAX_SEARCH_QUERIES = 2  # cap paid Brave calls per lead (trading name, then legal name)
 # Sources whose provenance is trustworthy enough to accept a name-only match, or
 # a corroborated match with no name at all (the domain came from the business's
 # own registered email / production unit).
@@ -158,10 +160,14 @@ def name_domain_candidates(company_name: str | None) -> list[str]:
 
     ``Bager Martin ApS`` → ``bagermartin.dk``, ``bager-martin.dk``,
     ``bagermartin.com`` … Legal-form and generic tokens are dropped (reusing the
-    independence tokenizer), so we only guess from the distinctive words.
+    independence tokenizer), so we only guess from the distinctive words — but we
+    also try the *full* slug that keeps trade words, since businesses do register
+    them (``RESTAURANT MELLEMRUM`` → ``restaurantmellemrum.dk``, not just
+    ``mellemrum.dk``).
     """
     tokens_set, slug = business_key(company_name)
-    if not slug or len(slug) < 4:
+    full = full_slug(company_name)
+    if (not slug or len(slug) < 4) and len(full) < 4:
         return []
     # Keep name order for the hyphenated variant (business_key returns a set).
     from .independence import _TOKEN_RE, _STOP_TOKENS  # local: internal helpers
@@ -171,8 +177,10 @@ def name_domain_candidates(company_name: str | None) -> list[str]:
         if t not in _STOP_TOKENS
     ]
     bases: list[str] = []
-    if slug:
+    if slug and len(slug) >= 4:
         bases.append(slug)  # bagermartin
+    if full and len(full) >= 4 and full != slug:
+        bases.append(full)  # restaurantmellemrum
     if len(ordered) >= 2:
         bases.append("-".join(ordered))  # bager-martin
     if len(ordered) == 1 and len(ordered[0]) >= 5:
@@ -292,7 +300,14 @@ def verify_ownership(
     brand_name = getattr(brand, "name", None)
     if brand_name and _name_present(brand_name, text, alnum):
         matched.append("brand")
-    name_hit = "name" in matched or "brand" in matched
+    # A registered secondary name (binavn) is a real trading name — the site may
+    # only ever say "Restaurant MellemRum", never "Thygesen & Thallaug".
+    hit_binavn = next(
+        (bn for bn in (lead.binavne or []) if _name_present(bn, text, alnum)), None
+    )
+    if hit_binavn:
+        matched.append("binavn")
+    name_hit = bool({"name", "brand", "binavn"} & set(matched))
 
     phones = list(lead.phone or [])
     if brand is not None:
@@ -333,7 +348,11 @@ def verify_ownership(
         # Name-only, untrusted source (search / name-guess): only accept when the
         # name is distinctive. A generic category+place name ("København Frisør")
         # matches any competitor's site, so require a hard corroborator instead.
-        if is_distinctive(lead.company_name) or (brand_name and is_distinctive(brand_name)):
+        if (
+            ("name" in matched and is_distinctive(lead.company_name))
+            or ("brand" in matched and is_distinctive(brand_name))
+            or ("binavn" in matched and is_distinctive(hit_binavn))
+        ):
             return 0.6, matched
         return 0.0, matched
     # No name and no CVR — only trust a self-registered host with corroboration.
@@ -399,6 +418,18 @@ class WebsiteDiscoverer:
             if found:
                 return found
 
+        # Tier 1a — the same, from each registered secondary name (binavn). The
+        # storefront often trades under it (THYGESEN & THALLAUG → "Restaurant
+        # MellemRum" → restaurantmellemrum.dk), and it's free to guess.
+        for binavn in lead.binavne or []:
+            for host in name_domain_candidates(binavn):
+                if host in seen:
+                    continue
+                seen.add(host)
+                found = self._try(lead, host, "name_guess")
+                if found:
+                    return found
+
         # Tier 1.5 — production unit (P-enhed): the storefront trading name +
         # its own registered site/contact, which the company record lacks.
         penhed = self._lookup_penhed(lead)
@@ -426,18 +457,24 @@ class WebsiteDiscoverer:
                 if found:
                     return found
 
-        # Tier 2 — Brave web search (paid; only when configured). Search on the
-        # trading name when we have one — that's what the storefront ranks under.
+        # Tier 2 — Brave web search (paid; only when configured). Search the
+        # trading names first (P-enhed brand, then binavne) — that's what the
+        # storefront ranks under — then fall back to the legal name. Cleaned of
+        # owner suffix / legal form: the full legal string tanks recall.
         if self._brave is not None:
-            brand_name = penhed.name if penhed is not None else None
-            # Search the cleaned name (no owner suffix / legal form) — the full
-            # legal string ("… V/Lars Weltzer ApS") tanks web-search recall.
-            query_name = brand_name or search_name(lead.company_name)
-            if query_name:
-                query = query_name
-                city = lead.city or (penhed.city if penhed is not None else None)
-                if city:
-                    query += f" {city}"
+            city = lead.city or (penhed.city if penhed is not None else None)
+            query_names: list[str] = []
+            for candidate in (
+                penhed.name if penhed is not None else None,
+                *(lead.binavne or []),
+                lead.company_name,
+            ):
+                cleaned = search_name(candidate)
+                if cleaned and cleaned not in query_names:
+                    query_names.append(cleaned)
+
+            for query_name in query_names[:_MAX_SEARCH_QUERIES]:
+                query = f"{query_name} {city}" if city else query_name
                 hosts = self._brave.candidate_hosts(query)[:_MAX_SEARCH_CANDIDATES]
                 for host in hosts:
                     if host in seen:
@@ -464,13 +501,21 @@ class WebsiteDiscoverer:
         host = _strip_www(host.lower().strip("."))
         if _is_directory(host):
             return None
-        try:
-            if not self._resolver.addresses(host):
-                return None
-        except Exception:
+        # Resolve the apex, then fall back to www — plenty of Danish sites
+        # publish an A record only on www (roskildesvaneapotek.dk has none;
+        # www.roskildesvaneapotek.dk does). Without this we'd call them dead.
+        resolved: str | None = None
+        for candidate in (host, f"www.{host}"):
+            try:
+                if self._resolver.addresses(candidate):
+                    resolved = candidate
+                    break
+            except Exception:
+                continue
+        if resolved is None:
             return None
 
-        url = f"https://{host}/"
+        url = f"https://{resolved}/"
         try:
             fetch = self._fetcher.fetch(url)
         except Exception:
@@ -491,6 +536,12 @@ class WebsiteDiscoverer:
         confidence, matched = verify_ownership(lead, fetch, final_host, source, brand=brand)
         if confidence < _ACCEPT_THRESHOLD:
             return None
+        # Record the trading name that actually verified, if any.
+        trading_name: str | None = None
+        if "brand" in matched:
+            trading_name = getattr(brand, "name", None)
+        elif "binavn" in matched:
+            trading_name = next(iter(lead.binavne or []), None)
         return DiscoveryResult(
             url=fetch.final_url or url,
             host=final_host or host,
@@ -498,5 +549,5 @@ class WebsiteDiscoverer:
             confidence=confidence,
             matched=matched,
             fetch=fetch,
-            brand_name=getattr(brand, "name", None) if "brand" in matched else None,
+            brand_name=trading_name,
         )

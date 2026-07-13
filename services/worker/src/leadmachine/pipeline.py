@@ -70,7 +70,7 @@ def qualify_leads(
         WebsiteDiscoverer,
         run_qualification,
     )
-    from .cvr.penhed import current_pnummer
+    from .cvr.penhed import current_binavne, current_pnummer
     from .website.models import LeadToQualify
 
     query = db.table("leads").select(
@@ -92,6 +92,7 @@ def qualify_leads(
             cvr_number=r.get("cvr_number"),
             address=r.get("address"),
             pnummer=current_pnummer((_one(r.get("lead_enrichment")) or {}).get("cvr")),
+            binavne=current_binavne((_one(r.get("lead_enrichment")) or {}).get("cvr")),
         )
         for r in (res.data or [])
     ]

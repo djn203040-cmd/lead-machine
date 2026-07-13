@@ -38,7 +38,14 @@ from .mapper import (
 PENHED_ROOT = "VrproduktionsEnhed"
 PNUMMER_FIELD = f"{PENHED_ROOT}.pNummer"
 
-__all__ = ["PenhedInfo", "PenhedClient", "EsPenhedClient", "map_penhed", "current_pnummer"]
+__all__ = [
+    "PenhedInfo",
+    "PenhedClient",
+    "EsPenhedClient",
+    "map_penhed",
+    "current_pnummer",
+    "current_binavne",
+]
 
 
 @dataclass(slots=True)
@@ -78,6 +85,27 @@ def current_pnummer(cvr_record: dict[str, Any] | None) -> str | None:
     chosen = current[-1] if current else penheder[-1]
     pn = chosen.get("pNummer")
     return str(pn) if pn not in (None, "") else None
+
+
+def current_binavne(cvr_record: dict[str, Any] | None) -> list[str]:
+    """Current secondary company names (``binavne``) from a company blob.
+
+    A Danish company can register secondary names, and the storefront often
+    trades under one: THYGESEN & THALLAUG ApS has binavn "RESTAURANT MELLEMRUM
+    ApS" — and the site lives at restaurantmellemrum.dk, not under the legal
+    name. Only currently-valid entries (``periode.gyldigTil`` null) are returned.
+    """
+    if not cvr_record:
+        return []
+    v = _unwrap(cvr_record)
+    out: list[str] = []
+    for item in v.get("binavne") or []:
+        if not _is_current(item):
+            continue
+        navn = item.get("navn")
+        if navn and navn not in out:
+            out.append(str(navn))
+    return out
 
 
 def _unwrap_penhed(record: dict[str, Any]) -> dict[str, Any]:

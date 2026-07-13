@@ -102,6 +102,82 @@ def test_verify_name_plus_geo() -> None:
     assert "name" in matched and "geo" in matched
 
 
+def test_name_candidates_include_full_slug_with_trade_word() -> None:
+    # Businesses register the trade word in the domain: restaurantmellemrum.dk.
+    cands = name_domain_candidates("RESTAURANT MELLEMRUM ApS")
+    assert "restaurantmellemrum.dk" in cands
+    assert "mellemrum.dk" in cands  # short form still tried
+
+
+# --- www-only domains ------------------------------------------------------
+class _WwwOnlyResolver:
+    """Apex has no A record; only the www host resolves (roskildesvaneapotek.dk)."""
+
+    def addresses(self, domain: str) -> list[str]:
+        return ["1.2.3.4"] if domain.startswith("www.") else []
+
+    def nameservers(self, domain: str) -> list[str]:
+        return ["ns1.hosting.dk"]
+
+
+def test_discover_falls_back_to_www_when_apex_has_no_dns() -> None:
+    html = (
+        "<html><body><h1>Roskilde Svane Apotek</h1>"
+        "<p>Skomagergade 19, 4000 Roskilde</p></body></html>"
+    )
+    fetcher = StubFetcher(
+        {"https://www.roskildesvaneapotek.dk/": _fetch("https://www.roskildesvaneapotek.dk/", html)}
+    )
+    disc = WebsiteDiscoverer(fetcher, _WwwOnlyResolver())
+    lead = LeadToQualify(
+        "L", None, "Roskilde Svane Apotek V/Ulla Charlotte Andersen",
+        address="Skomagergade 19", postal_code="4000", city="Roskilde",
+    )
+
+    found = disc.discover(lead)
+    assert found is not None
+    assert found.url == "https://www.roskildesvaneapotek.dk/"  # www kept in the URL
+    assert found.host == "roskildesvaneapotek.dk"  # canonical host
+    assert fetcher.fetched == ["https://www.roskildesvaneapotek.dk/"]
+
+
+# --- binavne (registered secondary trading names) --------------------------
+MELLEMRUM_HTML = (
+    "<html><body><h1>Restaurant MellemRum</h1>"
+    "<footer>Fredens Torv 2, 8000 Aarhus C · CVR 30598881</footer></body></html>"
+)
+
+
+def test_verify_via_binavn() -> None:
+    # The site never says "Thygesen & Thallaug" — only the secondary name.
+    lead = LeadToQualify(
+        "L", None, "THYGESEN & THALLAUG ApS", address="Fredens Torv 2, st",
+        binavne=["RESTAURANT MELLEMRUM ApS"],
+    )
+    conf, matched = verify_ownership(
+        lead, _fetch("https://restaurantmellemrum.dk/", MELLEMRUM_HTML),
+        "restaurantmellemrum.dk", "name_guess",
+    )
+    assert conf >= 0.9
+    assert "binavn" in matched and "name" not in matched
+
+
+def test_discover_via_binavn_name_guess() -> None:
+    fetcher = StubFetcher(
+        {"https://restaurantmellemrum.dk/": _fetch("https://restaurantmellemrum.dk/", MELLEMRUM_HTML)}
+    )
+    disc = WebsiteDiscoverer(fetcher, FakeResolver())
+    lead = LeadToQualify(
+        "L", None, "THYGESEN & THALLAUG ApS", address="Fredens Torv 2, st",
+        binavne=["RESTAURANT MELLEMRUM ApS"],
+    )
+
+    found = disc.discover(lead)
+    assert found is not None
+    assert found.host == "restaurantmellemrum.dk"
+    assert found.brand_name == "RESTAURANT MELLEMRUM ApS"
+
+
 def test_is_distinctive() -> None:
     from leadmachine.website.independence import is_distinctive
 

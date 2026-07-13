@@ -9,9 +9,26 @@ import httpx
 
 from leadmachine.cvr.penhed import (
     EsPenhedClient,
+    current_binavne,
     current_pnummer,
     map_penhed,
 )
+
+
+# --- current_binavne -------------------------------------------------------
+def test_current_binavne_picks_open_periods() -> None:
+    blob = {
+        "binavne": [
+            {"navn": "GAMMELT NAVN ApS", "periode": {"gyldigTil": "2015-01-01"}},
+            {"navn": "RESTAURANT MELLEMRUM ApS", "periode": {"gyldigTil": None}},
+        ]
+    }
+    assert current_binavne(blob) == ["RESTAURANT MELLEMRUM ApS"]
+
+
+def test_current_binavne_empty() -> None:
+    assert current_binavne(None) == []
+    assert current_binavne({"binavne": []}) == []
 
 PENHED_SOURCE = {
     "VrproduktionsEnhed": {

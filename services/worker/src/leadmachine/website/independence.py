@@ -26,15 +26,22 @@ KNOWN_PLATFORM_HOSTS: frozenset[str] = frozenset(
     }
 )
 
-# Company-form / generic tokens that never identify a business by name.
-_STOP_TOKENS: frozenset[str] = frozenset(
+# Legal-form / corporate tokens — never part of a domain or a business identity.
+_LEGAL_TOKENS: frozenset[str] = frozenset(
     {
         "aps", "as", "a", "s", "ivs", "ihs", "ks", "is", "pmv", "smba", "amba",
         "fmba", "ltd", "gmbh", "inc", "co", "holding", "group", "gruppe",
         "gruppen", "danmark", "denmark", "dk", "the", "og", "and",
-        "restaurant", "restauranten", "cafe", "café", "bar", "bistro", "kro",
     }
 )
+# Trade words dropped when *matching* a name (too generic to identify a firm) —
+# but businesses often DO put them in their domain (restaurantmellemrum.dk), so
+# `full_slug` keeps them for domain guessing.
+_TRADE_TOKENS: frozenset[str] = frozenset(
+    {"restaurant", "restauranten", "cafe", "café", "bar", "bistro", "kro"}
+)
+# Company-form / generic tokens that never identify a business by name.
+_STOP_TOKENS: frozenset[str] = _LEGAL_TOKENS | _TRADE_TOKENS
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _MIN_SLUG_LEN = 5  # below this we can't match a name confidently
@@ -117,6 +124,21 @@ def business_key(company_name: str | None) -> tuple[set[str], str]:
     significant = {t for t in tokens if len(t) >= 3}
     slug = "".join(tokens)
     return significant, slug
+
+
+def full_slug(company_name: str | None) -> str:
+    """Slug keeping trade words — businesses put them in the domain.
+
+    ``"RESTAURANT MELLEMRUM ApS"`` → ``"restaurantmellemrum"`` (whereas
+    :func:`business_key`'s slug drops "restaurant" → ``"mellemrum"``). Only the
+    legal form is stripped.
+    """
+    if not company_name:
+        return ""
+    name = strip_owner_suffix(company_name)
+    return "".join(
+        t for t in _TOKEN_RE.findall(_normalize(name)) if t not in _LEGAL_TOKENS
+    )
 
 
 def is_distinctive(company_name: str | None) -> bool:
