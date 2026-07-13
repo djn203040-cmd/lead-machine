@@ -76,6 +76,9 @@ _GENERIC_TOKENS: frozenset[str] = frozenset(
         # geographic generics
         "centrum", "city", "midtby", "bymidten", "torv", "torvet", "hovedgaden",
         "noerrebro", "oesterbro", "vesterbro", "amager", "sydhavn", "sydhavnen",
+        # connectives / articles — they survive business_key's ≥3-char filter
+        # ("Klinik FOR Fysioterapi") but never make a name distinctive
+        "for", "med", "ved", "hos", "til", "fra", "paa", "det", "den", "der",
     }
 )
 

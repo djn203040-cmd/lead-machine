@@ -70,19 +70,22 @@ def test_strip_owner_suffix() -> None:
 
 
 def test_verify_owner_named_company_matches_on_business_name() -> None:
-    # A dentist site names the practice but never the owner "Lars Weltzer".
+    # A dentist site names the practice but never the owner "Lars Weltzer". The
+    # name is generic (trade + place), so it needs a hard corroborator (their
+    # phone) — street address alone matches every clinic on Algade.
     lead = LeadToQualify(
-        "L", None, "TANDLÆGERNE I CENTRUM V/LARS WELTZER ApS", address="Algade 5-7"
+        "L", None, "TANDLÆGERNE I CENTRUM V/LARS WELTZER ApS",
+        address="Algade 5-7", phone=["46321234"],
     )
     html = (
         "<html><body><h1>Tandlægerne i Centrum</h1>"
-        "<p>Algade 5-7, 4000 Roskilde</p></body></html>"
+        "<p>Algade 5-7, 4000 Roskilde · tlf. 46 32 12 34</p></body></html>"
     )
     conf, matched = verify_ownership(
         lead, _fetch("https://tandicentrum.dk/", html), "tandicentrum.dk", "search"
     )
-    assert conf >= 0.9  # business name + address, owner suffix ignored
-    assert "name" in matched and "address" in matched
+    assert conf >= 0.9  # generic business name + own phone, owner suffix ignored
+    assert "name" in matched and "phone" in matched and "address" in matched
 
 
 # --- ownership verification ------------------------------------------------
@@ -107,6 +110,9 @@ def test_name_candidates_include_full_slug_with_trade_word() -> None:
     cands = name_domain_candidates("RESTAURANT MELLEMRUM ApS")
     assert "restaurantmellemrum.dk" in cands
     assert "mellemrum.dk" in cands  # short form still tried
+    # The full slug is tried FIRST: "mellemrum.dk" is a dictionary word that an
+    # unrelated business can own (it does — an art-print shop).
+    assert cands.index("restaurantmellemrum.dk") < cands.index("mellemrum.dk")
 
 
 # --- www-only domains ------------------------------------------------------
@@ -213,6 +219,100 @@ def test_directory_hosts_rejected() -> None:
     assert _is_directory("frisorfinder.dk")
     assert _is_directory("spiseguidenaarhus.dk")
     assert _is_directory("aafrobarber7365.setmore.com")  # subdomain of a portal
+    # Shopping-street directories by naming pattern, not just the known list.
+    assert _is_directory("oesterbrogade-shopping.dk")
+    assert _is_directory("www.valby-shopping.dk")
+    assert not _is_directory("shopping.dk")  # the pattern needs the street prefix
+
+
+def test_verify_rejects_generic_name_with_geo_only_corroboration() -> None:
+    # roskilde-fysioterapi.dk case: a *different* Roskilde clinic matches the
+    # generic name "Klinik for Fysioterapi" and the city/postal + street — every
+    # competitor on the street does. Soft geo must not corroborate a generic name.
+    lead = LeadToQualify(
+        "L", None, "KLINIK FOR FYSIOTERAPI V/BJARKE BILDE ApS",
+        address="Dronning Margrethes Vej 26", postal_code="4000", city="Roskilde",
+        phone=["46351234"],
+    )
+    html = (
+        "<html><body><h1>Roskilde Fysioterapi</h1>"
+        "<p>Klinik for fysioterapi · Algade 12, 4000 Roskilde · tlf 46359999</p></body></html>"
+    )
+    conf, matched = verify_ownership(
+        lead, _fetch("https://roskilde-fysioterapi.dk/", html), "roskilde-fysioterapi.dk", "search"
+    )
+    assert conf < 0.6
+    assert "geo" in matched  # geo DID match — and still must not be enough
+
+
+def test_verify_accepts_generic_name_with_phone_corroboration() -> None:
+    # Same generic name, but the page shows the lead's own phone → it's them.
+    lead = LeadToQualify(
+        "L", None, "KLINIK FOR FYSIOTERAPI V/BJARKE BILDE ApS",
+        postal_code="4000", city="Roskilde", phone=["46351234"],
+    )
+    html = "<html><body><h1>Klinik for Fysioterapi</h1><p>Ring 46 35 12 34</p></body></html>"
+    conf, matched = verify_ownership(
+        lead, _fetch("https://klinikx.dk/", html), "klinikx.dk", "search"
+    )
+    assert conf >= 0.9
+    assert "phone" in matched
+
+
+def test_verify_rejects_stripped_slug_guess_without_corroboration() -> None:
+    # mellemrum.dk case: the binavn "Restaurant MellemRum" guessed the stripped
+    # dictionary-word domain, which belongs to an unrelated art-print shop. The
+    # shop's page of course contains the word "mellemrum" — circular evidence.
+    lead = LeadToQualify(
+        "L", None, "THYGESEN & THALLAUG ApS", address="Fredens Torv 2, st",
+        city="Aarhus C", postal_code="8000", binavne=["RESTAURANT MELLEMRUM ApS"],
+    )
+    html = (
+        "<html><head><title>Mellemrum – prints og original kunst</title></head>"
+        "<body><h1>MELLEMrum</h1><p>Prints, comics og drawings</p></body></html>"
+    )
+    conf, _ = verify_ownership(
+        lead, _fetch("https://mellemrum.dk/", html), "mellemrum.dk", "name_guess"
+    )
+    assert conf < 0.6
+
+
+def test_verify_accepts_full_slug_guess_name_only() -> None:
+    # The same lead at the full-name domain is self-evidencing even with no
+    # phone/geo on the page: nobody else registers restaurantmellemrum.dk.
+    lead = LeadToQualify(
+        "L", None, "THYGESEN & THALLAUG ApS", binavne=["RESTAURANT MELLEMRUM ApS"],
+    )
+    html = "<html><body><h1>Restaurant MellemRum</h1><p>Menukort</p></body></html>"
+    conf, matched = verify_ownership(
+        lead, _fetch("https://restaurantmellemrum.dk/", html),
+        "restaurantmellemrum.dk", "name_guess",
+    )
+    assert conf >= 0.6
+    assert "binavn" in matched
+
+
+def test_discover_prefers_full_slug_domain_over_stripped() -> None:
+    # Both domains are live: the stripped guess is an unrelated art shop, the
+    # full guess is the restaurant. Discovery must land on the restaurant.
+    art = "<html><body><h1>MELLEMrum</h1><p>Prints og original kunst</p></body></html>"
+    fetcher = StubFetcher(
+        {
+            "https://mellemrum.dk/": _fetch("https://mellemrum.dk/", art),
+            "https://restaurantmellemrum.dk/": _fetch(
+                "https://restaurantmellemrum.dk/", MELLEMRUM_HTML
+            ),
+        }
+    )
+    disc = WebsiteDiscoverer(fetcher, FakeResolver())
+    lead = LeadToQualify(
+        "L", None, "THYGESEN & THALLAUG ApS", address="Fredens Torv 2, st",
+        binavne=["RESTAURANT MELLEMRUM ApS"],
+    )
+
+    found = disc.discover(lead)
+    assert found is not None
+    assert found.host == "restaurantmellemrum.dk"
 
 
 def test_verify_rejects_unrelated_page() -> None:

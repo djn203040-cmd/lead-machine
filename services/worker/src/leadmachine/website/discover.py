@@ -101,9 +101,12 @@ def _normalize(text: str) -> str:
 
 def _is_directory(host: str) -> bool:
     host = _strip_www(host.lower().strip("."))
-    return host in DIRECTORY_HOSTS or any(
-        host.endswith("." + d) for d in DIRECTORY_HOSTS
-    )
+    if host in DIRECTORY_HOSTS or any(host.endswith("." + d) for d in DIRECTORY_HOSTS):
+        return True
+    # Danish shopping-street directories share a "<street>-shopping.dk" naming
+    # (noerrebro-shopping.dk, oesterbrogade-shopping.dk, …) — they list every
+    # shop on the street with name/phone/address, so they'd otherwise verify.
+    return host.endswith("-shopping.dk")
 
 
 def _host_from_website(raw: str | None) -> str | None:
@@ -177,10 +180,13 @@ def name_domain_candidates(company_name: str | None) -> list[str]:
         if t not in _STOP_TOKENS
     ]
     bases: list[str] = []
-    if slug and len(slug) >= 4:
-        bases.append(slug)  # bagermartin
+    # Full slug first: "restaurantmellemrum" collides with nothing, whereas the
+    # stripped "mellemrum" is a plain dictionary word — if both exist as live
+    # domains, the specific one is far likelier to be theirs.
     if full and len(full) >= 4 and full != slug:
         bases.append(full)  # restaurantmellemrum
+    if slug and len(slug) >= 4:
+        bases.append(slug)  # bagermartin
     if len(ordered) >= 2:
         bases.append("-".join(ordered))  # bager-martin
     if len(ordered) == 1 and len(ordered[0]) >= 5:
@@ -250,6 +256,22 @@ class BraveSearchClient:
 
 
 # --- ownership verification ------------------------------------------------
+def _host_carries_full_name(names: list[str | None], host: str) -> bool:
+    """Whether the host itself spells out a business name in full.
+
+    ``restaurantmellemrum.dk`` carries "RESTAURANT MELLEMRUM"; ``mellemrum.dk``
+    does not — it only carries the stripped slug, which for a dictionary word
+    identifies nothing.
+    """
+    labels = _strip_www(host.lower()).split(".")[:-1]  # drop the TLD
+    host_alnum = _NON_ALNUM_RE.sub("", "".join(labels))
+    for name in names:
+        full = full_slug(name)
+        if len(full) >= 4 and full in host_alnum:
+            return True
+    return False
+
+
 def _page_text(fetch: FetchResult) -> str:
     """Normalized haystack for name/geo matching (title + body, capped)."""
     return _normalize(fetch.html or "")[:200_000]
@@ -338,25 +360,41 @@ def verify_ownership(
     if cvr_hit:
         return 0.99, matched
 
-    corroborated = phone_hit or email_hit or geo_hit or addr_hit
+    # Phone/email are unique to this business; postal code, city and street are
+    # shared with every competitor on the same street, so they only count as
+    # corroboration when the name itself already narrows it to one business.
+    hard = phone_hit or email_hit
+    soft = geo_hit or addr_hit
     trusted = source in _TRUSTED_SOURCES
     if name_hit:
-        if corroborated:
-            return 0.9, matched
         if trusted:
-            return 0.85, matched  # domain came from their own email / production unit
-        # Name-only, untrusted source (search / name-guess): only accept when the
-        # name is distinctive. A generic category+place name ("København Frisør")
-        # matches any competitor's site, so require a hard corroborator instead.
-        if (
-            ("name" in matched and is_distinctive(lead.company_name))
-            or ("brand" in matched and is_distinctive(brand_name))
-            or ("binavn" in matched and is_distinctive(hit_binavn))
-        ):
-            return 0.6, matched
-        return 0.0, matched
+            # Domain came from their own registered email / production unit.
+            return (0.9 if (hard or soft) else 0.85), matched
+        hit_names = [
+            nm
+            for key, nm in (
+                ("name", lead.company_name),
+                ("brand", brand_name),
+                ("binavn", hit_binavn),
+            )
+            if key in matched
+        ]
+        if not any(is_distinctive(nm) for nm in hit_names):
+            # A generic category+place name ("København Frisør", "Klinik for
+            # Fysioterapi") matches any competitor's site — and geo/street match
+            # the whole street — so only their own phone/email can corroborate.
+            return (0.9, matched) if hard else (0.0, matched)
+        if hard or soft:
+            return 0.9, matched
+        # Name-only. A guessed domain is circular evidence when the guess came
+        # from the stripped slug: any site living at the dictionary-word domain
+        # "mellemrum.dk" says "mellemrum" somewhere. Only a host that spells out
+        # the full name (restaurantmellemrum.dk) is self-evidencing.
+        if source == "name_guess" and not _host_carries_full_name(hit_names, host):
+            return 0.0, matched
+        return 0.6, matched
     # No name and no CVR — only trust a self-registered host with corroboration.
-    if trusted and corroborated:
+    if trusted and (hard or soft):
         return 0.7, matched
     return 0.0, matched
 
