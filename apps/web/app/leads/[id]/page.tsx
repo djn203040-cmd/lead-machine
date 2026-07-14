@@ -27,6 +27,7 @@ import {
   formatDetail,
   parseBreakdown,
 } from "@/lib/score-breakdown";
+import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import { PipelineBadge, ScoreChip, WebsiteNeedBadge } from "../_components/Badge";
 import PipelinePanel, {
   type FollowupView,
@@ -205,6 +206,20 @@ export default async function LeadDetailPage({
               <AnglePart label="Svagheder" text={angle.weaknesses_da} />
             </section>
           )}
+
+          <Section title="Telefonsvarer — ved intet svar">
+            <blockquote className="whitespace-pre-wrap border-l-2 border-brand-500 pl-3 text-sm text-ink">
+              {buildVoicemail({
+                firstName: voicemailFirstName(contact.decision_makers ?? []),
+                companyName: lead.company_name,
+                websiteNeed: lead.website_need,
+              })}
+            </blockquote>
+            <p className="mt-2 text-xs text-faint">
+              Fast script — kun fornavn og årsag skifter. Et «JA» på SMS er deres egen
+              henvendelse, så du må ringe (og skrive) tilbage.
+            </p>
+          </Section>
 
           <Section title="Virksomhedsdata">
             <dl>

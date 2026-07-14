@@ -10,6 +10,7 @@ import {
   view,
 } from "@/lib/enrichment";
 import { employeesLabel, formatDKK, pipelineMeta, websiteNeedMeta } from "@/lib/leadmeta";
+import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import { logOutcome, saveNote, scheduleFollowup } from "../actions";
 
 export type DialerAngle = {
@@ -215,6 +216,11 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   const fin = view<FinancialEnrichment>(lead.financial);
   const contact = view<ContactEnrichment>(lead.contact);
   const decisionMakers = contact.decision_makers ?? [];
+  const voicemail = buildVoicemail({
+    firstName: voicemailFirstName(decisionMakers),
+    companyName: lead.company_name,
+    websiteNeed: lead.website_need,
+  });
   const angle = lead.angle;
   const branche = lead.branche_text ?? groupLabel(lead.branchekode) ?? "—";
   const address = [lead.address, [lead.postal_code, lead.city].filter(Boolean).join(" ")]
@@ -326,6 +332,19 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
               <AnglePart label="Svagheder" text={angle.weaknesses_da} />
             </section>
           )}
+
+          <section className="card card-pad">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-faint">
+              Telefonsvarer — ved intet svar
+            </h2>
+            <blockquote className="whitespace-pre-wrap border-l-2 border-brand-500 pl-3 text-sm text-ink">
+              {voicemail}
+            </blockquote>
+            <p className="mt-2 text-xs text-faint">
+              Fast script — kun fornavn og årsag skifter. Et «JA» på SMS er deres egen
+              henvendelse, så du må ringe (og skrive) tilbage.
+            </p>
+          </section>
 
           <section className="card card-pad">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-faint">
