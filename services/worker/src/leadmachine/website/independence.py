@@ -97,6 +97,23 @@ def strip_owner_suffix(name: str | None) -> str:
     return _OWNER_SUFFIX_RE.sub("", name or "").strip()
 
 
+_OWNER_CAPTURE_RE = re.compile(r"(?i)\s+v[/.]\s*(?P<owner>\S.*)$|\s+/\s*(?P<owner2>\S.*)$")
+
+
+def owner_name(company_name: str | None) -> str:
+    """The owner's personal name from a ``v/<owner>`` suffix, or ``""``.
+
+    For generic sole-trader names ("KLINIK FOR FYSIOTERAPI V/BJARKE BILDE") the
+    owner IS the distinctive part — the storefront site says "v/ Bjarke Bilde"
+    even when the trade name on the site differs completely.
+    """
+    m = _OWNER_CAPTURE_RE.search(company_name or "")
+    if not m:
+        return ""
+    owner = m.group("owner") or m.group("owner2") or ""
+    return _LEGAL_FORM_RE.sub("", owner).strip()
+
+
 def search_name(company_name: str | None) -> str:
     """A cleaned business name for a web search — no owner suffix, no legal form."""
     return _LEGAL_FORM_RE.sub("", strip_owner_suffix(company_name)).strip()

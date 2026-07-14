@@ -13,8 +13,11 @@
 - **Stack (locked):** Next.js 15 + Supabase (TS) `apps/web`; Python 3.11/uv worker `services/worker`; Scrapling for scraping; Claude (`claude-opus-4-8`) for Danish angles, **`claude-haiku-4-5`** for website quality grading.
 - **Local dev is set up:** `uv` installed; `services/worker/.env` + `apps/web/.env.local` filled with real creds (both gitignored; no `BRAVE_API_KEY` locally). `pnpm install` + `uv sync` done. `pnpm --filter web dev` boots against live Supabase. **236 worker tests green**, ruff clean, web `tsc --noEmit` + lint clean. A local `uv run leadmachine enrich-queued --drain` against live Supabase works and is how the Session-16 corrections were applied (only touches `enrichment_status='queued'` leads).
 
-### ▶ Next task — USER: `cd services/worker && fly deploy` (→ v14, the Session-16 precision guards)  ← START HERE
-The Session-16 re-run is **done** (results in the Session 16 entry below), but the **precision fixes it produced are only on `main` + applied to the DB — Fly still runs v13**. Until the user deploys, any NEW enrichment through the Fly worker can re-introduce the same false-positive classes (generic-name + geo matches, stripped-slug name guesses, `*-shopping.dk` directories). **No SQL/re-run needed after deploying** — the book is already corrected.
+### ▶ Next task — USER: `cd services/worker && fly deploy` (→ v14 = S16 precision guards + S17 owner/exact-address verification); THEN re-run the Bjarke Bilde lead  ← START HERE
+Fly still runs **v13**. `main` now carries both the Session-16 precision guards AND the Session-17 recall fixes (owner-name anchor + search query, exact street+number as hard corroborator). After the user deploys:
+1. Re-queue lead `1b3e205f-1338-4ff7-bee7-a6fa700c9d7a` (KLINIK FOR FYSIOTERAPI V/BJARKE BILDE — real site is **fysroskilde.dk**, only findable via Brave with the owner-augmented query; verification against the live homepage already scores **0.9** with the new code): reset `website_need`→`unknown` + `enrichment_status`→`queued`, `delete from lead_angles` for it, `fly machine start 2863e24f51d328 -a lead-machine-worker`, confirm `discovered_url = fysroskilde.dk`.
+2. **⚠ Do NOT re-queue it on v13** — v13 would re-attach the wrong clinic (`roskilde-fysioterapi.dk`) and searches without the owner name.
+3. Consider a broader second wave over the remaining 62 `none` leads once v14 is live — the owner-query + exact-address fixes likely recover more sole-trader sites with abbreviated/brand domains.
 
 **Then (smaller, still open):**
 - **⚠ Rotate `BRAVE_API_KEY`** — it passed through chat. `fly secrets set BRAVE_API_KEY=<new> -a lead-machine-worker`.
@@ -287,6 +290,17 @@ Took the app from "deploy artifacts exist" to **fully deployed and running on re
 - **Wired the on-demand trigger auth:** `FLY_API_TOKEN` (Fly deploy token) → user added to **Vercel** env (instant trigger); I set it as a **GitHub repo secret** via `gh` and **test-ran the backstop workflow → success (14s).** Both trigger paths confirmed live end-to-end (Machines-API start → drain → stop).
 - **Cost model:** marginal ≈ **$0.03–0.05/lead** (all Claude/Opus angles; Fly compute ~$0.00002/lead). Fixed ≈ Fly ~$0.30/mo (volume) + Supabase $0 free/$25 Pro + Vercel $0 Hobby/$20 Pro. Realistic steady use ≈ **$80–125/mo all-in** at ~2k leads/mo, dominated by lead volume. Lever: angles are ~100% of Claude spend (generate only for high-score leads, or use Haiku, to cut it).
 - **Stopped at:** everything committed & pushed to `main` (through `977c615`); production live. **Next = user smoke-tests the real UI flow** (Find virksomheder → Ja, berig → auto-enrich) + provision Robinson list + publish privacy notice + close M1–M6 epics.
+
+### Session 17 — 2026-07-14  (user spot-check: Bjarke Bilde's real site IS findable — owner-name + exact-address verification shipped; needs the same v14 deploy)
+User googled "KLINIK FOR FYSIOTERAPI V/BJARKE BILDE" and instantly found the real site **fysroskilde.dk** (address matches). Diagnosed why every tier missed it, fixed the two recall holes; **241 tests green, ruff clean; verified 0.9 against the live homepage HTML.**
+
+- **Why it was missed:** (1) the domain is an abbreviation ("Fys"+"Roskilde") no name-guess can derive — only web search can find it; (2) our Brave query **strips the owner** ("Klinik for Fysioterapi Roskilde") which ranks competitors first — the user found it because they searched WITH "Bjarke Bilde"; (3) even if found, verification would have rejected it: the homepage lacks the CVR phone (site shows a mobile) and the name is generic, while the two signals it DOES have — the owner's name and the **exact** address "Dronning Margrethes Vej 26" — were ignored (owner stripped; address matched street-only = soft). Also n.b.: Simply.com-hosted sites 455-block plain curl but the worker's `HttpxFetcher` gets 200.
+- **Fixes (`independence.py`, `discover.py`):**
+  - `owner_name()` — extracts the `v/<owner>` personal name. `verify_ownership` matches it as a contiguous run → a distinctive anchor (generic legal name no longer blocks acceptance when the owner is credited). Owner-only with zero corroboration still rejects (common-name collisions), as does owner+generic-tokens with nothing else.
+  - `_exact_address_match()` — street **+ house number** as one run = **hard** corroborator (pins the building; "Nørrebrogade 110" vs lead's "…61" still rejects — that was the Golden Touch FP). Bare street stays soft. Evidence label `address_exact`.
+  - Brave query appends the owner when the trade name is non-distinctive: `"KLINIK FOR FYSIOTERAPI BJARKE BILDE Roskilde"`.
+  - Name-only 0.6 tier now requires a **distinctive business-name** hit (owner/generic-token hits alone don't reach it).
+- **Stopped at:** committed + pushed to `main`; **NOT deployed (Fly = v13) and the lead is still `none` in the DB** — re-queue it only after the v14 deploy (see ▶ Next task; v13 would re-attach the wrong clinic).
 
 ### Session 16 — 2026-07-13  (v13 re-run of the none/dead book — 6 real flips, 4 FPs caught → 3 new precision guards; needs `fly deploy` → v14)
 Ran the deferred re-run of the **68 `none` + 2 `dead`** leads on worker v13, audited every flip, and closed three discovery-precision holes the audit exposed. **Book: 192 = 102 modern / 62 none / 22 bad / 4 outdated / 2 dead; 143 callable** (was 98/68/20/4/2; 142).

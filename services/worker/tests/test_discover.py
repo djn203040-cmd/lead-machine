@@ -85,7 +85,7 @@ def test_verify_owner_named_company_matches_on_business_name() -> None:
         lead, _fetch("https://tandicentrum.dk/", html), "tandicentrum.dk", "search"
     )
     assert conf >= 0.9  # generic business name + own phone, owner suffix ignored
-    assert "name" in matched and "phone" in matched and "address" in matched
+    assert "name" in matched and "phone" in matched and "address_exact" in matched
 
 
 # --- ownership verification ------------------------------------------------
@@ -292,6 +292,94 @@ def test_verify_accepts_full_slug_guess_name_only() -> None:
     assert "binavn" in matched
 
 
+def test_owner_name_extraction() -> None:
+    from leadmachine.website.independence import owner_name
+
+    assert owner_name("KLINIK FOR FYSIOTERAPI V/BJARKE BILDE ApS") == "BJARKE BILDE"
+    assert owner_name("Casa Frisør v/Camilla From Vedsted") == "Camilla From Vedsted"
+    assert owner_name("KJ MINH /Vu Minh Nguyen") == "Vu Minh Nguyen"
+    assert owner_name("LA CABRA Aarhus ApS") == ""  # no owner marker
+    assert owner_name(None) == ""
+
+
+def test_verify_accepts_generic_name_via_owner_and_exact_address() -> None:
+    # fysroskilde.dk case: the site is branded "FysRoskilde" — it never says
+    # "Klinik for Fysioterapi" as a unit, doesn't show the CVR phone (site has a
+    # mobile), but credits the owner and shows the exact street + number.
+    lead = LeadToQualify(
+        "L", None, "KLINIK FOR FYSIOTERAPI V/BJARKE BILDE ApS",
+        address="Dronning Margrethes Vej 26", postal_code="4000", city="Roskilde",
+        phone=["46373301"],
+    )
+    html = (
+        "<html><body><h1>FysRoskilde</h1><p>Fysioterapi klinik i Roskilde</p>"
+        "<footer>FysRoskilde v/ Bjarke Bilde · Dronning Margrethes Vej 26 - 4000 Roskilde"
+        " · Ring i dag: 26 35 34 34</footer></body></html>"
+    )
+    conf, matched = verify_ownership(
+        lead, _fetch("https://fysroskilde.dk/", html), "fysroskilde.dk", "search"
+    )
+    assert conf >= 0.9
+    assert "owner" in matched and "address_exact" in matched
+
+
+def test_verify_exact_address_is_hard_but_street_alone_is_not() -> None:
+    # goldentouchgt.dk case: same street, DIFFERENT house number → still reject;
+    # but the exact street+number pins the building → accept even w/o owner.
+    lead = LeadToQualify(
+        "L", None, "København Frisør v/Azad Salahi",
+        address="Nørrebrogade 61", postal_code="2200", city="København N",
+    )
+    other_number = "<html><body><h1>Frisørsalon · Nørrebrogade 110, 2200 København</h1></body></html>"
+    conf, _ = verify_ownership(
+        lead, _fetch("https://goldentouchgt.dk/", other_number), "goldentouchgt.dk", "search"
+    )
+    assert conf < 0.6
+
+    same_number = "<html><body><h1>Frisør · Nørrebrogade 61, 2200 København</h1></body></html>"
+    conf, matched = verify_ownership(
+        lead, _fetch("https://salonx.dk/", same_number), "salonx.dk", "search"
+    )
+    assert conf >= 0.9
+    assert "address_exact" in matched
+
+
+def test_verify_owner_only_without_corroboration_rejected() -> None:
+    # A page mentioning "Bjarke Bilde" with no other signal could be a different
+    # person with the same name.
+    lead = LeadToQualify("L", None, "KLINIK FOR FYSIOTERAPI V/BJARKE BILDE ApS")
+    html = "<html><body><p>Foredrag med Bjarke Bilde om fysioterapi og klinik</p></body></html>"
+    conf, _ = verify_ownership(lead, _fetch("https://blog.dk/", html), "blog.dk", "search")
+    assert conf < 0.6
+
+
+def test_brave_query_includes_owner_for_generic_names() -> None:
+    class _CapturingBrave:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def candidate_hosts(self, query: str) -> list[str]:
+            self.queries.append(query)
+            return []
+
+        def close(self) -> None:
+            pass
+
+    brave = _CapturingBrave()
+    disc = WebsiteDiscoverer(StubFetcher({}), FakeResolver(), brave=brave)  # type: ignore[arg-type]
+    lead = LeadToQualify(
+        "L", None, "KLINIK FOR FYSIOTERAPI V/BJARKE BILDE ApS", city="Roskilde"
+    )
+    disc.discover(lead)
+    assert brave.queries == ["KLINIK FOR FYSIOTERAPI BJARKE BILDE Roskilde"]
+
+    # Distinctive names keep the plain query — the owner would hurt recall.
+    brave2 = _CapturingBrave()
+    disc2 = WebsiteDiscoverer(StubFetcher({}), FakeResolver(), brave=brave2)  # type: ignore[arg-type]
+    disc2.discover(LeadToQualify("L", None, "Noribar v/Anna Hansen", city="Aarhus"))
+    assert brave2.queries == ["Noribar Aarhus"]
+
+
 def test_discover_prefers_full_slug_domain_over_stripped() -> None:
     # Both domains are live: the stripped guess is an unrelated art shop, the
     # full guess is the restaurant. Discovery must land on the restaurant.
@@ -338,7 +426,7 @@ def test_verify_via_brand_name_and_address() -> None:
         lead, _fetch("https://noribar.dk/", BRAND_HTML), "noribar.dk", "penhed", brand=brand
     )
     assert conf >= 0.9  # brand name + street address
-    assert "brand" in matched and "address" in matched
+    assert "brand" in matched and "address_exact" in matched
     assert "name" not in matched  # the company name never appears
 
 

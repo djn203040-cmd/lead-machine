@@ -29,10 +29,12 @@ from urllib.parse import urlsplit
 from .domain import Resolver, classify_from_fetch
 from .fetch import WebsiteFetcher
 from .independence import (
+    _TOKEN_RE,
     business_key,
     full_slug,
     is_distinctive,
     is_not_independent,
+    owner_name,
     search_name,
     strip_owner_suffix,
 )
@@ -144,6 +146,26 @@ def _street_match(address: str | None, spaced_text: str) -> bool:
     if not street:
         return False
     return f" {street} " in f" {spaced_text} "
+
+
+def _exact_address_match(address: str | None, spaced_text: str) -> bool:
+    """Whether street *and house number* appear as one run in the page text.
+
+    "Nørrebrogade" alone matches every competitor on the street (that's a soft
+    signal); "Dronning Margrethes Vej 26" pins the one building — near-unique
+    for a storefront, so it counts as a hard corroborator.
+    """
+    if not address:
+        return False
+    first = address.split(",")[0]
+    tokens = _normalize(first).replace(".", " ").split()
+    if len(tokens) < 2 or not _HOUSE_RE.match(tokens[-1]):
+        return False  # no house number registered — only the soft street match applies
+    street = " ".join(tokens[:-1]).strip()
+    if len(street) < 5:
+        return False
+    run = _NON_ALNUM_RE.sub(" ", f"{street} {tokens[-1]}").strip()
+    return f" {run} " in f" {spaced_text} "
 
 
 def email_domain_candidate(email: str | None) -> str | None:
@@ -353,20 +375,34 @@ def verify_ownership(
         matched.append("geo")
 
     addresses = [lead.address, getattr(brand, "address", None) if brand is not None else None]
-    addr_hit = any(_street_match(a, spaced) for a in addresses)
-    if addr_hit:
+    addr_exact_hit = any(_exact_address_match(a, spaced) for a in addresses)
+    addr_hit = addr_exact_hit or any(_street_match(a, spaced) for a in addresses)
+    if addr_exact_hit:
+        matched.append("address_exact")
+    elif addr_hit:
         matched.append("address")
+
+    # The owner's personal name ("v/ Bjarke Bilde") on the page is a distinctive
+    # anchor in its own right — sole-trader sites often never repeat the generic
+    # legal name ("Klinik for Fysioterapi") but do credit the owner.
+    owner = owner_name(lead.company_name)
+    owner_tokens = [t for t in _TOKEN_RE.findall(_normalize(owner)) if len(t) >= 3]
+    owner_hit = (
+        len(owner_tokens) >= 2 and f" {' '.join(owner_tokens)} " in f" {spaced} "
+    )
+    if owner_hit:
+        matched.append("owner")
 
     if cvr_hit:
         return 0.99, matched
 
-    # Phone/email are unique to this business; postal code, city and street are
-    # shared with every competitor on the same street, so they only count as
-    # corroboration when the name itself already narrows it to one business.
-    hard = phone_hit or email_hit
+    # Phone/email/exact-address pin one business; postal code, city and bare
+    # street name are shared with every competitor on the same street, so they
+    # only corroborate when the name itself already narrows it to one business.
+    hard = phone_hit or email_hit or addr_exact_hit
     soft = geo_hit or addr_hit
     trusted = source in _TRUSTED_SOURCES
-    if name_hit:
+    if name_hit or owner_hit:
         if trusted:
             # Domain came from their own registered email / production unit.
             return (0.9 if (hard or soft) else 0.85), matched
@@ -379,18 +415,26 @@ def verify_ownership(
             )
             if key in matched
         ]
-        if not any(is_distinctive(nm) for nm in hit_names):
+        # The owner's personal name is always distinctive — "v/ Bjarke Bilde"
+        # on the page identifies the business even when the legal name doesn't.
+        if not owner_hit and not any(is_distinctive(nm) for nm in hit_names):
             # A generic category+place name ("København Frisør", "Klinik for
             # Fysioterapi") matches any competitor's site — and geo/street match
-            # the whole street — so only their own phone/email can corroborate.
+            # the whole street — so only a hard identity signal can corroborate.
             return (0.9, matched) if hard else (0.0, matched)
         if hard or soft:
             return 0.9, matched
-        # Name-only. A guessed domain is circular evidence when the guess came
-        # from the stripped slug: any site living at the dictionary-word domain
+        # Name-only from here: require a distinctive *business* name. An owner
+        # hit alone (or with generic trade tokens) and nothing else on the page
+        # could be a different person with the same common name.
+        distinctive_hits = [nm for nm in hit_names if is_distinctive(nm)]
+        if not distinctive_hits:
+            return 0.0, matched
+        # A guessed domain is circular evidence when the guess came from the
+        # stripped slug: any site living at the dictionary-word domain
         # "mellemrum.dk" says "mellemrum" somewhere. Only a host that spells out
         # the full name (restaurantmellemrum.dk) is self-evidencing.
-        if source == "name_guess" and not _host_carries_full_name(hit_names, host):
+        if source == "name_guess" and not _host_carries_full_name(distinctive_hits, host):
             return 0.0, matched
         return 0.6, matched
     # No name and no CVR — only trust a self-registered host with corroboration.
@@ -501,6 +545,7 @@ class WebsiteDiscoverer:
         # owner suffix / legal form: the full legal string tanks recall.
         if self._brave is not None:
             city = lead.city or (penhed.city if penhed is not None else None)
+            owner = owner_name(lead.company_name)
             query_names: list[str] = []
             for candidate in (
                 penhed.name if penhed is not None else None,
@@ -508,7 +553,14 @@ class WebsiteDiscoverer:
                 lead.company_name,
             ):
                 cleaned = search_name(candidate)
-                if cleaned and cleaned not in query_names:
+                if not cleaned:
+                    continue
+                # A generic trade name ("Klinik for Fysioterapi") ranks every
+                # competitor above the actual business — the owner's name is
+                # the distinctive part, so search with it ("… Bjarke Bilde").
+                if owner and not is_distinctive(candidate):
+                    cleaned = f"{cleaned} {owner}"
+                if cleaned not in query_names:
                     query_names.append(cleaned)
 
             for query_name in query_names[:_MAX_SEARCH_QUERIES]:
