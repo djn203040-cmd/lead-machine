@@ -136,10 +136,10 @@ export function mapCompany(record: Json): MappedLead {
     founded_at: meta?.stiftelsesDato ?? null,
     reklamebeskyttet,
     is_sole_trader: SOLE_TRADER_FORM_CODES.has(formCode),
-    // Heuristic until the full website-qualification step runs: a company with
-    // no website listed in CVR is the strongest lead (`none`); otherwise leave
-    // it `unknown` to be qualified later.
-    website_need: website ? "unknown" : "none",
+    // Always `unknown`: the worker's qualifier only processes `unknown` leads,
+    // and a missing CVR `hjemmeside` must still go through website *discovery*
+    // (most Danish SMBs never fill that field in) before concluding `none`.
+    website_need: "unknown",
   };
 
   return { row, raw: unwrap(record), suppression };
