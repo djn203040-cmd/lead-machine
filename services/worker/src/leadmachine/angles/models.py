@@ -24,6 +24,9 @@ class LeadForAngle:
     website_need: str = "unknown"
     employees: int | None = None
     score: int | None = None
+    # 'mobile' (likely the owner's own phone) | 'landline' | 'service' | None.
+    # Steers the opener: direct-to-owner pitch vs. gatekeeper variant.
+    phone_type: str | None = None
     website: dict[str, Any] = field(default_factory=dict)
     financial: dict[str, Any] = field(default_factory=dict)
     social: dict[str, Any] = field(default_factory=dict)

@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from leadmachine.website.phones import extract_phones, normalize_phone
+from leadmachine.website.phones import (
+    best_phone_type,
+    classify_phone,
+    extract_phones,
+    normalize_phone,
+)
 
 
 # --- normalize_phone -------------------------------------------------------
@@ -19,6 +24,41 @@ def test_normalize_rejects_non_danish() -> None:
     assert normalize_phone("00000000") is None  # first digit not 2-9
     assert normalize_phone("11223344") is None  # starts with 1
     assert normalize_phone(None) is None
+
+
+# --- classify_phone / best_phone_type --------------------------------------
+def test_classify_mobile_ranges() -> None:
+    for n in ("20123456", "29999999", "30112233", "42112233", "53112233",
+              "61112233", "71112233", "81112233", "93112233"):
+        assert classify_phone(n) == "mobile", n
+
+
+def test_classify_landline_ranges() -> None:
+    for n in ("32345678", "45678901", "58112233", "65112233", "75112233",
+              "86112233", "97112233"):
+        assert classify_phone(n) == "landline", n
+
+
+def test_classify_service_ranges() -> None:
+    assert classify_phone("70112233") == "service"
+    assert classify_phone("80112233") == "service"
+    assert classify_phone("90112233") == "service"
+
+
+def test_classify_normalizes_first() -> None:
+    assert classify_phone("+45 20 12 34 56") == "mobile"
+    assert classify_phone("0045 70112233") == "service"
+    assert classify_phone("ikke et nummer") is None
+    assert classify_phone(None) is None
+
+
+def test_best_phone_type_prefers_most_personal() -> None:
+    assert best_phone_type(["70112233", "86112233", "20123456"]) == "mobile"
+    assert best_phone_type(["70112233", "86112233"]) == "landline"
+    assert best_phone_type(["70112233"]) == "service"
+    assert best_phone_type(["garbage"]) is None
+    assert best_phone_type([]) is None
+    assert best_phone_type(None) is None
 
 
 # --- extract_phones --------------------------------------------------------

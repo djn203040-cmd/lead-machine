@@ -31,6 +31,24 @@ else. Do NOT try to close the sale, explain features, or sell the website on \
 this first call. Every line should move toward booking that viewing. Curiosity \
 about the already-finished demo is the entire lever.
 
+WHO ANSWERS THE PHONE:
+The brief includes a "Telefonnummer-type" line saying what kind of number the \
+caller is dialing. Adapt everything to who actually picks up:
+- Mobilnummer: assume the OWNER answers directly. Write the opener straight to \
+them, personal and specific — the current default approach.
+- Fastnet/hovednummer or 70/80-nummer: assume an employee, receptionist, or a \
+busy staff member answers — likely NOT the decision maker, and possibly mid-rush \
+(a restaurant at lunch, a shop with customers). The opening_line_da must work on \
+whoever picks up: state the value in one short line — the finished demo website \
+that's already built for the business — and ask for the right person, e.g. "jeg \
+har fået bygget en færdig demo af en ny hjemmeside til jer — hvem er den \
+rigtige at tale med om den slags?". Never pitch the full angle to a gatekeeper. \
+angle_da should then assume the caller has reached (or been transferred to) the \
+owner. Include a gatekeeper objection in objections_da (e.g. "ejeren er her \
+ikke" → get a name and the best time to call back, calmly and without pushing). \
+Respect the person's time — offer to call back if they sound busy.
+If the line is missing, write for the owner answering directly.
+
 VOICE — blend these, weighted toward the first:
 - Jeremy Miner (NEPQ), dominant: calm, curious, low-pressure, relaxed and \
 neutral tonality — never hyped or "commission-breath". Lead with a soft, \
@@ -100,6 +118,19 @@ _NEED_DA: dict[str, str] = {
     "outdated": "Forældet hjemmeside",
     "modern": "Moderne hjemmeside",
     "unknown": "Ukendt",
+}
+
+# phone_type → Danish "who answers" line for the brief.
+_PHONE_TYPE_DA: dict[str, str] = {
+    "mobile": "Mobilnummer — ringer sandsynligvis direkte til ejeren",
+    "landline": (
+        "Fastnet/hovednummer — sandsynligvis butikkens hovedtelefon; "
+        "en medarbejder eller reception kan tage den (gatekeeper)"
+    ),
+    "service": (
+        "70/80-nummer — virksomhedens omstilling/hovednummer; "
+        "helt sikkert ikke ejerens egen telefon (gatekeeper)"
+    ),
 }
 
 _FACTOR_DA: dict[str, str] = {
@@ -191,6 +222,10 @@ def build_user_prompt(lead: LeadForAngle) -> str:
         lines.append(f"Lead-score (0–100): {lead.score}")
 
     lines.append(f"Hjemmeside-status: {_NEED_DA.get(lead.website_need, lead.website_need)}")
+
+    phone_type = _PHONE_TYPE_DA.get(lead.phone_type or "")
+    if phone_type:
+        lines.append(f"Telefonnummer-type: {phone_type}")
 
     weaknesses = _weaknesses(lead)
     if weaknesses:

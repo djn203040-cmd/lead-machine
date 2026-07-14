@@ -10,6 +10,7 @@ import {
   view,
 } from "@/lib/enrichment";
 import { employeesLabel, formatDKK, pipelineMeta, websiteNeedMeta } from "@/lib/leadmeta";
+import { classifyPhone, phoneTypeMeta } from "@/lib/phone";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import { logOutcome, saveNote, scheduleFollowup } from "../actions";
 
@@ -233,6 +234,12 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
     typeof fin.profit_loss === "number" ||
     typeof fin.equity === "number" ||
     fin.revenue_estimate?.value !== undefined;
+  // Who picks up? With no mobile among the numbers, expect a gatekeeper —
+  // surface the "ask for the owner" hint next to the call buttons.
+  const phoneClasses = lead.phone.map((p) => classifyPhone(p));
+  const gatekeeperMeta = phoneClasses.includes("mobile")
+    ? null
+    : phoneTypeMeta(phoneClasses.find((c) => c !== null) ?? null);
 
   return (
     <div>
@@ -413,21 +420,37 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
               </h2>
               {lead.phone.length > 0 ? (
                 <div className="space-y-2">
-                  {lead.phone.map((p) => (
-                    <a
-                      key={p}
-                      href={telHref(p)}
-                      className="flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-b from-brand-700 to-brand px-4 py-3.5 text-2xl font-semibold tabular-nums tracking-tight text-white shadow-[var(--shadow-card)] transition-transform hover:-translate-y-0.5"
-                    >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-                        <path
-                          d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.24 1z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                      {p}
-                    </a>
-                  ))}
+                  {lead.phone.map((p) => {
+                    const meta = phoneTypeMeta(classifyPhone(p));
+                    return (
+                      <div key={p}>
+                        <a
+                          href={telHref(p)}
+                          className="flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-b from-brand-700 to-brand px-4 py-3.5 text-2xl font-semibold tabular-nums tracking-tight text-white shadow-[var(--shadow-card)] transition-transform hover:-translate-y-0.5"
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+                            <path
+                              d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.24 1z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                          {p}
+                        </a>
+                        {meta && (
+                          <p className="mt-1.5 text-center">
+                            <span className={`chip ${meta.className} text-[0.7rem]`} title={meta.hint}>
+                              {meta.label}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {gatekeeperMeta && (
+                    <p className="rounded-lg border border-amber-fg/25 bg-amber-bg px-3 py-2 text-xs text-amber-fg">
+                      {gatekeeperMeta.hint}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-faint">Intet telefonnummer</p>

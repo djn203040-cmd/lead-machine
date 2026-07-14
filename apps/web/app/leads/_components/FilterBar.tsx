@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { GROUP_OPTIONS } from "@/lib/branchekoder";
 import { PIPELINE_STATUSES, PIPELINE_META, WEBSITE_NEED_OPTIONS } from "@/lib/leadmeta";
+import { PHONE_TYPE_OPTIONS } from "@/lib/phone";
 
 export type LeadFilters = {
   q: string;
@@ -10,6 +11,7 @@ export type LeadFilters = {
   need: string;
   status: string;
   minScore: string;
+  phoneType: string;
   view: string;
 };
 
@@ -107,6 +109,20 @@ export default function FilterBar({ filters }: { filters: LeadFilters }) {
         {PIPELINE_STATUSES.map((s) => (
           <option key={s} value={s}>
             {PIPELINE_META[s].label}
+          </option>
+        ))}
+      </select>
+
+      <select
+        name="phoneType"
+        defaultValue={filters.phoneType}
+        onChange={(e) => submit(e.currentTarget.form!)}
+        className={selectClass}
+      >
+        <option value="">Alle numre</option>
+        {PHONE_TYPE_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
           </option>
         ))}
       </select>

@@ -83,6 +83,15 @@ def test_build_user_prompt_includes_revenue_social_and_factors() -> None:
     assert "Hjemmesidebehov 45/45" in prompt
 
 
+def test_build_user_prompt_includes_phone_type() -> None:
+    assert "Mobilnummer" in build_user_prompt(_lead(phone_type="mobile"))
+    landline = build_user_prompt(_lead(phone_type="landline"))
+    assert "hovednummer" in landline and "gatekeeper" in landline
+    assert "omstilling" in build_user_prompt(_lead(phone_type="service"))
+    # Unknown/missing type → no line, and the model defaults to owner-direct.
+    assert "Telefonnummer-type" not in build_user_prompt(_lead(phone_type=None))
+
+
 def test_build_prompt_returns_system_and_user() -> None:
     system, user = build_prompt(_lead())
     assert system == SYSTEM_PROMPT

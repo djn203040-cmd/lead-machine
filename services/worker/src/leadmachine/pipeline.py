@@ -282,6 +282,7 @@ def generate_angles(
     from .angles import ClaudeAnglesClient, SupabaseAngleWriter, run_angles
     from .angles.models import LeadForAngle
     from .financial.estimate import band_midpoint
+    from .website import best_phone_type
 
     query = (
         db.table("leads")
@@ -312,6 +313,7 @@ def generate_angles(
                 website_need=row.get("website_need") or "unknown",
                 employees=row.get("employees_exact") or band_midpoint(row.get("employees_band")),
                 score=row.get("score"),
+                phone_type=best_phone_type(row.get("phone")),
                 website=enr.get("website") or {},
                 financial=enr.get("financial") or {},
                 social=enr.get("social") or {},

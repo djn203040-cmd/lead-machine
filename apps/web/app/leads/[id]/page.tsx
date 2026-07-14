@@ -27,6 +27,7 @@ import {
   formatDetail,
   parseBreakdown,
 } from "@/lib/score-breakdown";
+import { classifyPhone, phoneTypeMeta } from "@/lib/phone";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import { PipelineBadge, ScoreChip, WebsiteNeedBadge } from "../_components/Badge";
 import PipelinePanel, {
@@ -408,21 +409,32 @@ export default async function LeadDetailPage({
           <Section title="Kontakt">
             {lead.phone.length > 0 ? (
               <div className="space-y-2">
-                {lead.phone.map((p) => (
-                  <a
-                    key={p}
-                    href={`tel:${p.replace(/\s/g, "")}`}
-                    className="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-lg font-semibold text-brand-700 transition-colors hover:bg-brand-100"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                      <path
-                        d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.24 1z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                    {p}
-                  </a>
-                ))}
+                {lead.phone.map((p) => {
+                  const meta = phoneTypeMeta(classifyPhone(p));
+                  return (
+                    <a
+                      key={p}
+                      href={`tel:${p.replace(/\s/g, "")}`}
+                      className="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-lg font-semibold text-brand-700 transition-colors hover:bg-brand-100"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path
+                          d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.24 1z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                      {p}
+                      {meta && (
+                        <span
+                          className={`chip ${meta.className} ml-auto text-[0.65rem]`}
+                          title={meta.hint}
+                        >
+                          {meta.label}
+                        </span>
+                      )}
+                    </a>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-faint">Intet telefonnummer</p>

@@ -25,7 +25,7 @@ from .models import (
     WebsiteSignals,
 )
 from .pagespeed import PageSpeedClient, parse_pagespeed
-from .phones import extract_phones, normalize_phone
+from .phones import best_phone_type, classify_phone, extract_phones, normalize_phone
 from .qualify import (
     QualifyStats,
     SupabaseWebsiteWriter,
@@ -48,6 +48,8 @@ __all__ = [
     "WebsiteFetcher",
     "PageSpeedClient",
     "parse_pagespeed",
+    "best_phone_type",
+    "classify_phone",
     "extract_phones",
     "normalize_phone",
     "BraveSearchClient",

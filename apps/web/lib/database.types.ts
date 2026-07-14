@@ -282,6 +282,7 @@ export type Database = {
           is_sole_trader: boolean
           kommune: string | null
           phone: string[]
+          phone_type: string | null
           pipeline_status: string
           postal_code: string | null
           reklamebeskyttet: boolean

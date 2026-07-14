@@ -3,6 +3,7 @@ import type { Tables } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { codesInGroup, groupLabel } from "@/lib/branchekoder";
 import { employeesLabel } from "@/lib/leadmeta";
+import { phoneTypeMeta } from "@/lib/phone";
 import { EnrichmentBadge, PipelineBadge, ScoreChip, WebsiteNeedBadge } from "./_components/Badge";
 import EnrichButton from "./_components/EnrichButton";
 import FilterBar, { type LeadFilters } from "./_components/FilterBar";
@@ -25,6 +26,7 @@ type LeadRow = Pick<
   | "pipeline_status"
   | "enrichment_status"
   | "phone"
+  | "phone_type"
 >;
 
 function first(value: string | string[] | undefined): string {
@@ -44,6 +46,7 @@ export default async function LeadsPage({
     need: first(sp.need),
     status: first(sp.status),
     minScore: first(sp.minScore),
+    phoneType: first(sp.phoneType),
     view,
   };
   const page = Math.max(1, Number.parseInt(first(sp.page), 10) || 1);
@@ -53,7 +56,7 @@ export default async function LeadsPage({
   let query = supabase
     .from("leads")
     .select(
-      "id, company_name, city, branche_text, branchekode, employees_band, employees_exact, website_need, score, pipeline_status, enrichment_status, phone",
+      "id, company_name, city, branche_text, branchekode, employees_band, employees_exact, website_need, score, pipeline_status, enrichment_status, phone, phone_type",
       { count: "exact" },
     )
     .eq("is_archived", false)
@@ -70,6 +73,7 @@ export default async function LeadsPage({
   if (filters.q) query = query.ilike("company_name", `%${filters.q}%`);
   if (filters.need) query = query.eq("website_need", filters.need);
   if (filters.status) query = query.eq("pipeline_status", filters.status);
+  if (filters.phoneType) query = query.eq("phone_type", filters.phoneType);
   if (filters.group) query = query.in("branchekode", codesInGroup(filters.group));
   const min = Number.parseInt(filters.minScore, 10);
   if (!Number.isNaN(min)) query = query.gte("score", min);
@@ -182,7 +186,20 @@ export default async function LeadsPage({
                         {l.company_name}
                       </Link>
                       {l.phone?.[0] ? (
-                        <div className="text-xs text-faint">{l.phone[0]}</div>
+                        <div className="flex items-center gap-1.5 text-xs text-faint">
+                          {l.phone[0]}
+                          {(() => {
+                            const meta = phoneTypeMeta(l.phone_type);
+                            return meta ? (
+                              <span
+                                className={`chip ${meta.className} px-1.5 py-0 text-[0.65rem]`}
+                                title={meta.hint}
+                              >
+                                {meta.label}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-muted">
