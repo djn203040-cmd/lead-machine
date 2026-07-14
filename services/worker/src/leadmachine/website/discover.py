@@ -299,13 +299,30 @@ def _page_text(fetch: FetchResult) -> str:
     return _normalize(fetch.html or "")[:200_000]
 
 
-def _name_present(name: str | None, text: str, alnum: str) -> bool:
+def _token_on_page(token: str, words: set[str]) -> bool:
+    """Whether a name token appears as a word (allowing Danish inflection).
+
+    Whole-word with a short-suffix allowance: "klinik" matches "klinikken" /
+    "klinikker" (definite/plural forms), but "charm" must NOT match
+    "charmerende" and "reda" must not match inside "fredag" — bare substring
+    matching turned Danish word fragments into ownership evidence.
+    """
+    if token in words:
+        return True
+    return any(w.startswith(token) and len(w) - len(token) <= 3 for w in words)
+
+
+def _name_present(name: str | None, words: set[str], alnum: str) -> bool:
     """Whether a business name (company or brand) appears on the page."""
     tokens, slug = business_key(name)
     return bool(
         (slug and len(slug) >= 5 and slug in alnum)
-        or (tokens and len(tokens) >= 2 and all(t in text for t in tokens))
-        or (len(tokens) == 1 and next(iter(tokens)) in text and len(next(iter(tokens))) >= 5)
+        or (tokens and len(tokens) >= 2 and all(_token_on_page(t, words) for t in tokens))
+        or (
+            len(tokens) == 1
+            and len(next(iter(tokens))) >= 5
+            and _token_on_page(next(iter(tokens)), words)
+        )
     )
 
 
@@ -331,6 +348,7 @@ def verify_ownership(
     digits = _digits(text)
     spaced = _NON_ALNUM_RE.sub(" ", text)
     alnum = spaced.replace(" ", "")
+    words = set(spaced.split())
     matched: list[str] = []
 
     # CVR number in the footer is the strongest signal Danish sites give us.
@@ -339,15 +357,15 @@ def verify_ownership(
     if cvr_hit:
         matched.append("cvr")
 
-    if _name_present(lead.company_name, text, alnum):
+    if _name_present(lead.company_name, words, alnum):
         matched.append("name")
     brand_name = getattr(brand, "name", None)
-    if brand_name and _name_present(brand_name, text, alnum):
+    if brand_name and _name_present(brand_name, words, alnum):
         matched.append("brand")
     # A registered secondary name (binavn) is a real trading name — the site may
     # only ever say "Restaurant MellemRum", never "Thygesen & Thallaug".
     hit_binavn = next(
-        (bn for bn in (lead.binavne or []) if _name_present(bn, text, alnum)), None
+        (bn for bn in (lead.binavne or []) if _name_present(bn, words, alnum)), None
     )
     if hit_binavn:
         matched.append("binavn")
@@ -387,8 +405,13 @@ def verify_ownership(
     # legal name ("Klinik for Fysioterapi") but do credit the owner.
     owner = owner_name(lead.company_name)
     owner_tokens = [t for t in _TOKEN_RE.findall(_normalize(owner)) if len(t) >= 3]
-    owner_hit = (
-        len(owner_tokens) >= 2 and f" {' '.join(owner_tokens)} " in f" {spaced} "
+    owner_slug = "".join(owner_tokens)
+    # Contiguous either as words ("v/ Bjarke Bilde") or as an alnum run — their
+    # social-profile slug often carries it (facebook.com/…fysioterapivbjarkebilde)
+    # even when the visible page only uses the storefront brand.
+    owner_hit = len(owner_tokens) >= 2 and (
+        f" {' '.join(owner_tokens)} " in f" {spaced} "
+        or (len(owner_slug) >= 7 and owner_slug in alnum)
     )
     if owner_hit:
         matched.append("owner")

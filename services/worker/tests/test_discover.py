@@ -380,6 +380,41 @@ def test_brave_query_includes_owner_for_generic_names() -> None:
     assert brave2.queries == ["Noribar Aarhus"]
 
 
+def test_verify_rejects_name_tokens_inside_other_words() -> None:
+    # salonnorth.dk case: "charm" appears only inside "charmerende" and the
+    # owner token "reda" inside "fredag" — word fragments are not evidence.
+    lead = LeadToQualify(
+        "L", None, "Salon Charm v/Reda Abdel-Mohssen Moustafa Aly",
+        address="Nørrebrogade 57", postal_code="2200", city="København N",
+    )
+    html = (
+        "<html><body><h1>Salon North</h1><p>Velkommen til vores charmerende salon"
+        " i Nordvest. Åbent mandag til fredag.</p></body></html>"
+    )
+    conf, _ = verify_ownership(
+        lead, _fetch("https://www.salonnorth.dk/", html), "salonnorth.dk", "search"
+    )
+    assert conf < 0.6
+
+
+def test_verify_name_tokens_allow_danish_inflection() -> None:
+    # "klinik" must still match "klinikken" (definite form) — whole-word with a
+    # short suffix, not bare substring.
+    lead = LeadToQualify(
+        "L", None, "KLINIK FOR FYSIOTERAPI V/BJARKE BILDE ApS",
+        address="Dronning Margrethes Vej 26", postal_code="4000", city="Roskilde",
+    )
+    html = (
+        "<html><body><h1>Klinikken for fysioterapien</h1>"
+        "<p>Dronning Margrethes Vej 26, 4000 Roskilde</p></body></html>"
+    )
+    conf, matched = verify_ownership(
+        lead, _fetch("https://fys.dk/", html), "fys.dk", "search"
+    )
+    assert conf >= 0.9  # name (inflected) + exact address
+    assert "name" in matched and "address_exact" in matched
+
+
 def test_discover_prefers_full_slug_domain_over_stripped() -> None:
     # Both domains are live: the stripped guess is an unrelated art shop, the
     # full guess is the restaurant. Discovery must land on the restaurant.
