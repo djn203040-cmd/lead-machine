@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { codesInGroup } from "@/lib/branchekoder";
 import type { Tables } from "@/lib/database.types";
 import { objections } from "@/lib/enrichment";
 import { createClient } from "@/lib/supabase/server";
 import Dialer, { type DialerLead } from "./_components/Dialer";
+import DialerFilterBar, { type DialerFilters } from "./_components/DialerFilterBar";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +49,12 @@ export default async function DialerPage({
   // Default ring list = leads not yet worked (new/enriched/qualified). The "all"
   // scope also re-surfaces contacted leads for a second attempt.
   const scope = first(sp.scope) === "all" ? "all" : "fresh";
+  const filters: DialerFilters = {
+    scope,
+    group: first(sp.group),
+    phoneType: first(sp.phoneType),
+    minScore: first(sp.minScore),
+  };
 
   const supabase = await createClient();
   let query = supabase
@@ -62,6 +70,11 @@ export default async function DialerPage({
     scope === "all"
       ? query.not("pipeline_status", "in", "(won,lost,discarded)")
       : query.in("pipeline_status", ["new", "enriched", "qualified"]);
+
+  if (filters.group) query = query.in("branchekode", codesInGroup(filters.group));
+  if (filters.phoneType) query = query.eq("phone_type", filters.phoneType);
+  const min = Number.parseInt(filters.minScore, 10);
+  if (!Number.isNaN(min)) query = query.gte("score", min);
 
   const { data } = await query
     .order("score", { ascending: false, nullsFirst: false })
@@ -119,7 +132,16 @@ export default async function DialerPage({
     };
   });
 
-  const scopeHref = (s: "fresh" | "all") => (s === "all" ? "/leads/dialer?scope=all" : "/leads/dialer");
+  // Scope tabs keep the active filters; filter changes keep the scope (in DialerFilterBar).
+  const scopeHref = (s: "fresh" | "all") => {
+    const params = new URLSearchParams();
+    if (s === "all") params.set("scope", "all");
+    if (filters.group) params.set("group", filters.group);
+    if (filters.phoneType) params.set("phoneType", filters.phoneType);
+    if (filters.minScore) params.set("minScore", filters.minScore);
+    const qs = params.toString();
+    return qs ? `/leads/dialer?${qs}` : "/leads/dialer";
+  };
   const tabClass = (active: boolean) =>
     `rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
       active ? "bg-brand-600 text-white shadow-sm" : "text-muted hover:text-ink"
@@ -144,7 +166,13 @@ export default async function DialerPage({
         </div>
       </div>
 
-      <Dialer queue={queue} />
+      <DialerFilterBar filters={filters} />
+
+      {/* Key resets the dialer's position when scope/filters swap the queue. */}
+      <Dialer
+        key={`${scope}|${filters.group}|${filters.phoneType}|${filters.minScore}`}
+        queue={queue}
+      />
     </div>
   );
 }
