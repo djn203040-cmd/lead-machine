@@ -1,4 +1,7 @@
-"""Tests for AI Danish sales-angle generation (M6) — no network, no API key."""
+"""Tests for AI Danish sales-angle generation (M6, savings angle v3).
+
+No network, no API key.
+"""
 
 from __future__ import annotations
 
@@ -40,28 +43,59 @@ def test_build_user_prompt_includes_core_facts() -> None:
     assert "Aarhus" in prompt
     assert "Antal ansatte: 3" in prompt
     assert "87" in prompt
-    assert "Ingen hjemmeside" in prompt
 
 
-def test_build_user_prompt_derives_weaknesses_from_signals() -> None:
+def test_build_user_prompt_leads_with_the_savings_math() -> None:
     lead = _lead(
-        website_need="bad",
-        website={
-            "signals": {
-                "has_viewport": False,
-                "has_https": False,
-                "legacy_markup": True,
-                "copyright_year": 2009,
-                "is_one_page": True,
-            },
-            "pagespeed": {"performance": 35},
-        },
+        branchekode="962100",  # frisør → beauty_wellness, 12%
+        financial={"revenue_estimate": {"value": 2_000_000, "confidence": "medium"}},
     )
     prompt = build_user_prompt(lead)
-    assert "ikke mobilvenlig" in prompt
-    assert "ingen HTTPS" in prompt.lower() or "ingen https" in prompt.lower()
-    assert "2009" in prompt
-    assert "langsom på mobil" in prompt
+    assert "BESPARELSESPOTENTIALE" in prompt
+    assert "Realistisk årlig besparelse" in prompt
+    assert "240.000" in prompt  # 12% of 2M, the top of the band
+    assert "Jeres honorar (20%" in prompt
+    assert "Virksomheden beholder" in prompt
+    # The number is an estimate from public data — never sold as a promise.
+    assert "aldrig" in prompt and "løfte" in prompt
+
+
+def test_unknown_headcount_is_flagged_next_to_the_number() -> None:
+    """Nothing bounds the estimate when we don't know how many hands there are."""
+    money = {"revenue_estimate": {"value": 9_000_000, "confidence": "medium"}}
+    unknown = build_user_prompt(_lead(branchekode="962100", employees=None, financial=money))
+    known = build_user_prompt(_lead(branchekode="962100", employees=4, financial=money))
+    assert "antal ansatte er ukendt" in unknown
+    # With a headcount the estimate is bounded, so the warning is unnecessary.
+    assert "antal ansatte er ukendt" not in known
+
+
+def test_build_user_prompt_forbids_figures_without_a_revenue_signal() -> None:
+    prompt = build_user_prompt(_lead(financial={}))
+    assert "Intet omsætningsestimat" in prompt
+    assert "IKKE konkrete kronebeløb" in prompt
+    assert "Realistisk årlig besparelse" not in prompt
+
+
+def test_build_user_prompt_lists_sector_time_sinks() -> None:
+    salon = build_user_prompt(_lead(branchekode="962100"))
+    builder = build_user_prompt(_lead(branchekode="433900"))
+    assert "TIDSRØVERE" in salon
+    assert "hypoteser" in salon  # ask, don't assert
+    assert salon != builder
+
+
+def test_website_status_is_background_not_the_pitch() -> None:
+    prompt = build_user_prompt(_lead(website_need="none"))
+    assert "TEKNISK MODENHED" in prompt
+    assert "må ikke bruges som salgsvinkel" in prompt
+    assert "Ingen hjemmeside" in prompt
+    assert "lav digital modenhed" in prompt
+
+
+def test_modern_site_reads_as_an_easy_systems_conversation() -> None:
+    prompt = build_user_prompt(_lead(website_need="modern"))
+    assert "digitalt med" in prompt
 
 
 def test_build_user_prompt_includes_revenue_social_and_factors() -> None:
@@ -70,8 +104,8 @@ def test_build_user_prompt_includes_revenue_social_and_factors() -> None:
         social={"has_fb_page": True, "has_meta_pixel": True},
         score_breakdown={
             "factors": {
-                "website_need": {"points": 45, "max": 45},
-                "budget": {"points": 14, "max": 20},
+                "savings": {"points": 34, "max": 40},
+                "industry": {"points": 20, "max": 20},
             }
         },
     )
@@ -80,7 +114,7 @@ def test_build_user_prompt_includes_revenue_social_and_factors() -> None:
     assert "medium" in prompt
     assert "Facebook-side" in prompt
     assert "Meta Pixel" in prompt
-    assert "Hjemmesidebehov 45/45" in prompt
+    assert "Besparelsespotentiale 34/40" in prompt
 
 
 def test_build_user_prompt_includes_phone_type() -> None:
@@ -90,6 +124,13 @@ def test_build_user_prompt_includes_phone_type() -> None:
     assert "omstilling" in build_user_prompt(_lead(phone_type="service"))
     # Unknown/missing type → no line, and the model defaults to owner-direct.
     assert "Telefonnummer-type" not in build_user_prompt(_lead(phone_type=None))
+
+
+def test_system_prompt_sells_savings_not_websites() -> None:
+    assert "20%" in SYSTEM_PROMPT
+    assert "NOT A WEBSITE PITCH" in SYSTEM_PROMPT
+    assert "does NOT sell websites" in SYSTEM_PROMPT
+    assert "NEVER promise a specific saving" in SYSTEM_PROMPT
 
 
 def test_build_prompt_returns_system_and_user() -> None:
@@ -231,22 +272,34 @@ def test_generate_one_calls_client_and_parses() -> None:
     assert "Salon Sax" in client.calls[0][1]  # the user prompt
 
 
-def test_run_angles_tallies_skips_and_persists() -> None:
+def test_run_angles_pitches_leads_with_an_unqualified_website() -> None:
+    """The savings pitch doesn't need a website verdict — don't skip those."""
     client = MockAnglesClient()
     writer = FakeAngleWriter()
     leads = [
         _lead(lead_id="A", website_need="none"),
         _lead(lead_id="B", website_need="bad"),
-        _lead(lead_id="C", website_need="unknown"),  # not qualified → skipped
+        _lead(lead_id="C", website_need="unknown"),
     ]
     stats = run_angles(leads, client, writer)
 
     assert stats.seen == 3
-    assert stats.generated == 2
-    assert stats.skipped == 1
+    assert stats.generated == 3
+    assert stats.skipped == 0
     assert stats.errors == 0
-    assert set(writer.writes) == {"A", "B"}
+    assert set(writer.writes) == {"A", "B", "C"}
     assert writer.writes["A"]["competitor_angle_type"] == "first_mover"
+
+
+def test_run_angles_can_still_opt_into_skipping_unqualified() -> None:
+    stats = run_angles(
+        [_lead(lead_id="C", website_need="unknown")],
+        MockAnglesClient(),
+        FakeAngleWriter(),
+        skip_unqualified=True,
+    )
+    assert stats.skipped == 1
+    assert stats.generated == 0
 
 
 def test_run_angles_counts_client_errors() -> None:
@@ -278,8 +331,9 @@ def test_supabase_angle_writer_upserts_lead_angles() -> None:
     assert "generated_at" in row
 
 
-@pytest.mark.parametrize("need", ["none", "dead", "parked", "facebook_only"])
-def test_no_site_weakness_is_single_clear_line(need: str) -> None:
-    prompt = build_user_prompt(_lead(website_need=need))
-    # exactly one bullet for the "no usable site" buckets
-    assert prompt.count("\n- ") == 1
+@pytest.mark.parametrize("need", ["none", "dead", "parked", "facebook_only", "modern"])
+def test_every_website_state_still_produces_a_usable_brief(need: str) -> None:
+    """Website state can't gate the pitch any more — every bucket must brief."""
+    prompt = build_user_prompt(_lead(website_need=need, branchekode="962100"))
+    assert "TIDSRØVERE" in prompt
+    assert "Læsning:" in prompt

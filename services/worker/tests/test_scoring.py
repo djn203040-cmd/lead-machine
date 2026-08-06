@@ -1,4 +1,4 @@
-"""Tests for lead scoring (M4) — pure computation, no network."""
+"""Tests for lead scoring (M4, savings rubric v2) — pure computation, no network."""
 
 from __future__ import annotations
 
@@ -13,12 +13,13 @@ from leadmachine.scoring import (
     Weights,
     gate_reason,
     run_scoring,
-    score_budget,
     score_industry,
     score_lead,
     score_presence,
     score_recency,
-    score_website_need,
+    score_savings,
+    score_size,
+    score_tech,
 )
 from leadmachine.scoring.rubric import CRITERION_FIELD
 
@@ -27,22 +28,33 @@ from .conftest import FakeScoreWriter, FakeSupabase
 TODAY = date(2026, 6, 22)
 W = Weights()
 
-# A fully "bad" live site: every quality signal fires.
-BAD_FULL = {
-    "signals": {
-        "has_viewport": False,
-        "has_https": False,
-        "legacy_markup": True,
-        "copyright_year": 2010,
-        "is_one_page": True,
-    },
-    "pagespeed": {"performance": 40},
+# A hairdresser (beauty_wellness, 12% savings rate) big enough to land in the
+# 250k–1M "prime" savings band, with margin to spare so the gross-profit cap
+# never bites.
+PRIME_FINANCIAL = {
+    "revenue_estimate": {"value": 5_000_000, "confidence": "medium"},
+    "gross_profit": 3_000_000,
 }
+
+
+def _financial(revenue: int, **kw) -> dict:
+    return {"revenue_estimate": {"value": revenue, "confidence": "medium"}, **kw}
 
 
 # --- rubric invariants -----------------------------------------------------
 def test_factor_caps_sum_to_100() -> None:
-    assert W.cap_website + W.cap_budget + W.cap_presence + W.cap_industry + W.cap_recency == 100
+    assert (
+        W.cap_savings
+        + W.cap_industry
+        + W.cap_tech
+        + W.cap_presence
+        + W.cap_size
+        + W.cap_recency
+    ) == 100
+
+
+def test_savings_is_the_dominant_factor() -> None:
+    assert W.cap_savings > max(W.cap_industry, W.cap_tech, W.cap_presence, W.cap_size)
 
 
 def test_every_seeded_criterion_maps_to_a_real_weight_field() -> None:
@@ -50,121 +62,113 @@ def test_every_seeded_criterion_maps_to_a_real_weight_field() -> None:
     assert set(CRITERION_FIELD.values()) <= valid
 
 
-# --- website-need factor (45) ----------------------------------------------
-@pytest.mark.parametrize("need", ["none", "dead", "parked", "facebook_only"])
-def test_no_usable_site_maxes_website_need(need: str) -> None:
-    fs = score_website_need(need, {}, W, TODAY)
-    assert fs.points == 45
-    assert fs.max == 45
+# --- savings factor (40) ---------------------------------------------------
+def test_savings_scales_with_the_size_of_the_prize() -> None:
+    # 962100 = frisør (beauty_wellness, 12%). Bands walk up then back down.
+    tiny = score_savings(_financial(150_000), "962100", W)
+    mid = score_savings(_financial(900_000), "962100", W)
+    prime = score_savings(_financial(5_000_000), "962100", W)
+    huge = score_savings(_financial(60_000_000), "962100", W)
+
+    assert tiny.points < mid.points < prime.points
+    assert prime.points == 40
+    assert huge.points < prime.points  # too big for a one-call local sale
 
 
-def test_bad_site_sums_signals_and_caps_at_45() -> None:
-    fs = score_website_need("bad", BAD_FULL, W, TODAY)
-    # 12 + 10 + 8 + 6 + 6 + 3 = 45
-    assert fs.points == 45
-    assert fs.detail["signals"] == {
-        "no_viewport": 12,
-        "no_https": 10,
-        "legacy": 8,
-        "old_copyright": 6,
-        "psi_low": 6,
-        "one_page": 3,
-    }
+def test_savings_detail_carries_the_dkk_math() -> None:
+    fs = score_savings(_financial(5_000_000), "962100", W)
+    assert fs.detail["band"] == "prime"
+    assert fs.detail["annual_low"] < fs.detail["annual_high"]
+    # our cut is 20% of the saving
+    assert fs.detail["fee_high"] == pytest.approx(fs.detail["annual_high"] * 0.2, rel=0.1)
+    assert fs.detail["confidence"] == "middel"
 
 
-def test_bad_site_with_one_signal_is_floored() -> None:
-    fs = score_website_need("bad", {"signals": {"has_https": False, "has_viewport": True}}, W, TODAY)
-    assert fs.points == W.w_bad_floor == 23
-    assert fs.detail["floored_to"] == 23
+def test_savings_without_revenue_is_unknown_not_zero() -> None:
+    fs = score_savings({}, "962100", W)
+    assert fs.points == W.sav_unknown == 12
+    assert fs.detail == {"band": "unknown"}
 
 
-def test_pagespeed_mid_band_scores_less_than_low() -> None:
-    mid = score_website_need("bad", {"signals": {"has_viewport": False}, "pagespeed": {"performance": 60}}, W, TODAY)
-    # no_viewport 12 + psi_mid 3 = 15 -> floored to 23
-    assert mid.detail["signals"]["psi_mid"] == 3
+def test_savings_is_capped_by_gross_profit() -> None:
+    lean = score_savings(_financial(5_000_000, gross_profit=300_000), "962100", W)
+    fat = score_savings(_financial(5_000_000, gross_profit=3_000_000), "962100", W)
+    assert lean.points < fat.points
+    assert lean.detail["capped_by"] == "gross_profit"
 
 
-def test_outdated_and_modern_and_unknown() -> None:
-    assert score_website_need("outdated", {}, W, TODAY).points == 22
-    assert score_website_need("modern", {}, W, TODAY).points == 4
-    assert score_website_need("unknown", {}, W, TODAY).points == 0
+def test_savings_rate_is_sector_adjusted() -> None:
+    # Same revenue: a retailer's turnover is mostly goods, a clinic's is time.
+    retail = score_savings(_financial(3_000_000), "477110", W)
+    clinic = score_savings(_financial(3_000_000), "862100", W)
+    assert retail.detail["rate"] < clinic.detail["rate"]
 
 
-def test_website_need_ladder_is_monotonic() -> None:
-    points = {
-        need: score_website_need(need, BAD_FULL if need == "bad" else {}, W, TODAY).points
-        for need in ("none", "bad", "outdated", "modern", "unknown")
-    }
-    assert points["none"] >= points["bad"] >= points["outdated"] >= points["modern"] >= points["unknown"]
-
-
-def test_old_copyright_only_counts_when_old_enough() -> None:
-    recent = score_website_need("bad", {"signals": {"has_viewport": False, "copyright_year": 2026}}, W, TODAY)
-    assert "old_copyright" not in recent.detail["signals"]
-
-
-# --- budget factor (20) ----------------------------------------------------
-@pytest.mark.parametrize(
-    "band,expected",
-    [
-        ("ANTAL_0_0", 4),
-        ("ANTAL_1_1", 4),
-        ("ANTAL_2_4", 10),
-        ("ANTAL_5_9", 16),
-        ("ANTAL_10_19", 20),
-        ("ANTAL_20_49", 20),
-        ("ANTAL_50_99", 14),
-        (None, 4),
-    ],
-)
-def test_budget_band_points(band: str | None, expected: int) -> None:
-    assert score_budget(None, band, {}, W).points == expected
-
-
-def test_budget_exact_overrides_band() -> None:
-    # exact=7 (5–9 → 16) wins over the band's midpoint
-    assert score_budget(7, "ANTAL_50_99", {}, W).points == 16
-
-
-def test_budget_financial_bump_is_capped() -> None:
-    fs = score_budget(14, None, {"gross_profit": 500_000, "equity": 200_000}, W)
-    # band 20 + bump 4, capped at 20
-    assert fs.points == 20
-
-
-def test_budget_financial_bump_helps_small_companies() -> None:
-    fs = score_budget(3, None, {"gross_profit": 100_000, "equity": 50_000}, W)
-    assert fs.points == 14  # 10 + 4
-    assert fs.detail["financial_bump"] == 4
-
-
-def test_budget_ignores_non_positive_financials() -> None:
-    fs = score_budget(3, None, {"gross_profit": -1, "equity": 0}, W)
-    assert fs.points == 10
-    assert "financial_bump" not in fs.detail
-
-
-# --- presence factor (15) --------------------------------------------------
-def test_presence_fb_and_pixel() -> None:
-    assert score_presence({"has_fb_page": True}, W).points == 8
-    assert score_presence({"has_meta_pixel": True}, W).points == 7
-    assert score_presence({"has_fb_page": True, "has_meta_pixel": True}, W).points == 15
-    assert score_presence({}, W).points == 0
-
-
-# --- industry factor (12) --------------------------------------------------
+# --- industry factor (20) --------------------------------------------------
 def test_industry_tiers() -> None:
-    assert score_industry("962100", W).points == 12  # catalogued (hairdresser)
-    assert score_industry("96.21.00", W).points == 12  # dotted form normalizes
-    assert score_industry("960230", W).points == 6  # same division, not catalogued
+    assert score_industry("962100", W).points == 20  # catalogued (hairdresser)
+    assert score_industry("96.21.00", W).points == 20  # dotted form normalizes
+    assert score_industry("960230", W).points == 10  # same division, not catalogued
     assert score_industry("010000", W).points == 0  # unrelated division
     assert score_industry(None, W).points == 0
 
 
-# --- recency factor (8) ----------------------------------------------------
+# --- digital-maturity factor (15) ------------------------------------------
+def test_tech_rewards_digital_maturity_not_website_need() -> None:
+    # The old rubric had this backwards: no site = best lead. Now a business
+    # that is already digital is the easier systems conversation.
+    modern = score_tech("modern", {}, W).points
+    neglected = score_tech("bad", {}, W).points
+    absent = score_tech("none", {}, W).points
+    assert modern > neglected > absent
+
+
+def test_tech_quality_bonus_is_capped() -> None:
+    fs = score_tech("modern", {"quality": {"tier": "premium"}}, W)
+    assert fs.points == W.cap_tech == 15
+    assert fs.detail["quality"] == "premium"
+
+
+def test_tech_unknown_is_neutral() -> None:
+    fs = score_tech("unknown", {}, W)
+    assert fs.points == W.t_unknown == 6
+    assert fs.detail["need"] == "unknown"
+
+
+# --- presence factor (10) --------------------------------------------------
+def test_presence_fb_and_pixel() -> None:
+    assert score_presence({"has_fb_page": True}, W).points == 4
+    assert score_presence({"has_meta_pixel": True}, W).points == 6
+    assert score_presence({"has_fb_page": True, "has_meta_pixel": True}, W).points == 10
+    assert score_presence({}, W).points == 0
+
+
+# --- size factor (8) -------------------------------------------------------
+@pytest.mark.parametrize(
+    "band,expected",
+    [
+        ("ANTAL_0_0", 2),
+        ("ANTAL_1_1", 2),
+        ("ANTAL_2_4", 5),
+        ("ANTAL_5_9", 7),
+        ("ANTAL_10_19", 8),
+        ("ANTAL_20_49", 8),
+        ("ANTAL_50_99", 6),
+        (None, 2),
+    ],
+)
+def test_size_band_points(band: str | None, expected: int) -> None:
+    assert score_size(None, band, W).points == expected
+
+
+def test_size_exact_overrides_band() -> None:
+    assert score_size(7, "ANTAL_50_99", W).points == 7
+
+
+# --- recency factor (7) ----------------------------------------------------
 def test_recency_active_plus_recent_founding() -> None:
     fs = score_recency("NORMAL", "2024-06-01", W, TODAY)
-    assert fs.points == 8  # active 4 + recent 4
+    assert fs.points == 7  # active 4 + recent 3
     assert fs.detail["founded"] == "recent"
 
 
@@ -207,14 +211,14 @@ def test_gate_no_phone_disqualifies() -> None:
 def _ideal_lead(**kw) -> LeadToScore:
     base = dict(
         lead_id="L1",
-        website_need="none",
+        website_need="modern",
         branchekode="962100",
         employees_exact=12,
         founded_at="2024-06-01",
         cvr_status="NORMAL",
         phone=["12345678"],
         social={"has_fb_page": True, "has_meta_pixel": True},
-        financial={"gross_profit": 500_000, "equity": 200_000},
+        financial=PRIME_FINANCIAL,
     )
     base.update(kw)
     return LeadToScore(**base)
@@ -224,8 +228,15 @@ def test_score_lead_perfect_lead_is_100() -> None:
     bd = score_lead(_ideal_lead(), W, TODAY)
     assert bd.total == 100
     assert not bd.gated
-    assert set(bd.factors) == {"website_need", "budget", "presence", "industry", "recency"}
-    assert bd.factors["website_need"].points == 45
+    assert set(bd.factors) == {
+        "savings",
+        "industry",
+        "tech",
+        "presence",
+        "size",
+        "recency",
+    }
+    assert bd.factors["savings"].points == 40
 
 
 def test_score_lead_gated_lead_scores_zero() -> None:
@@ -236,18 +247,37 @@ def test_score_lead_gated_lead_scores_zero() -> None:
     assert bd.factors == {}
 
 
-def test_score_lead_modern_site_scores_low_on_website() -> None:
-    weak = score_lead(_ideal_lead(website_need="modern"), W, TODAY).total
-    strong = score_lead(_ideal_lead(website_need="none"), W, TODAY).total
-    assert weak < strong  # a modern site is a worse lead for a web agency
+def test_savings_outweighs_the_website_signal() -> None:
+    """The point of rubric v2: money beats web presence.
+
+    A big business with no website must outrank a tiny one with a modern site —
+    under the old website rubric it was the other way round.
+    """
+    big_no_site = score_lead(
+        _ideal_lead(website_need="none", financial=PRIME_FINANCIAL), W, TODAY
+    ).total
+    small_modern = score_lead(
+        _ideal_lead(website_need="modern", financial=_financial(300_000)), W, TODAY
+    ).total
+    assert big_no_site > small_modern
+
+
+def test_score_lead_survives_an_unqualified_website() -> None:
+    """No website verdict yet is no longer a reason to bury a lead."""
+    bd = score_lead(_ideal_lead(website_need="unknown"), W, TODAY)
+    assert bd.total >= 85
 
 
 def test_breakdown_as_dict_shape() -> None:
     out = score_lead(_ideal_lead(), W, TODAY).as_dict()
-    assert out["version"] == 1
+    assert out["version"] == 2
     assert out["total"] == 100
     assert out["gated"] is False
-    assert out["factors"]["industry"] == {"points": 12, "max": 12, "detail": {"tier": "local_service", "branchekode": "962100"}}
+    assert out["factors"]["industry"] == {
+        "points": 20,
+        "max": 20,
+        "detail": {"tier": "local_service", "branchekode": "962100"},
+    }
 
 
 # --- weights tunable from scoring_criteria ---------------------------------
@@ -259,14 +289,16 @@ def test_from_criteria_defaults_match_seed() -> None:
 
 
 def test_from_criteria_config_points_override() -> None:
-    w = Weights.from_criteria([{"key": "no_website", "config": {"points": 30}, "is_active": True}])
-    assert w.w_none == 30
-    assert score_website_need("none", {}, w, TODAY).points == 30
+    w = Weights.from_criteria(
+        [{"key": "savings_potential", "config": {"points": 30}, "is_active": True}]
+    )
+    assert w.sav_prime == 30
+    assert score_savings(PRIME_FINANCIAL, "962100", w).points == 30
 
 
 def test_from_criteria_inactive_disables_signal() -> None:
-    w = Weights.from_criteria([{"key": "low_pagespeed", "config": None, "is_active": False}])
-    assert w.s_psi_low == 0
+    w = Weights.from_criteria([{"key": "runs_paid_ads", "config": None, "is_active": False}])
+    assert w.p_pixel == 0
 
 
 def test_from_criteria_ignores_unknown_keys_and_bool_points() -> None:

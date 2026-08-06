@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import typer
 
@@ -133,7 +134,7 @@ def score(
         True, help="Only leads whose website_need has been determined (skip 'unknown')."
     ),
 ) -> None:
-    """Compute the 0–100 website-selling score + ranked breakdown for each lead."""
+    """Compute the 0–100 savings-potential score + ranked breakdown for each lead."""
     from .config import settings
     from .db import get_client
     from .jobs import JobRun
@@ -166,6 +167,90 @@ def angles(
         job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))
+
+
+@app.command(name="angles-preview")
+def angles_preview(
+    limit: int = typer.Option(20, help="How many sample angles to generate."),
+    out: str = typer.Option(
+        "angle-samples.md", "--out", help="Markdown file to write the samples to."
+    ),
+    require_revenue: bool = typer.Option(
+        True, help="Only sample leads we can quote a DKK saving for."
+    ),
+    diversify: bool = typer.Option(True, help="Spread the sample across branche groups."),
+) -> None:
+    """Generate sample angles for review — WITHOUT writing them to lead_angles.
+
+    Read a prompt change before it rewrites the whole book: this persists
+    nothing, so a batch you don't like costs only tokens. Writes a Markdown file
+    with, per lead, the exact brief the model was given and the angle it wrote.
+    """
+    from .angles.prompt import build_user_prompt
+    from .config import settings
+    from .db import get_client
+    from .pipeline import preview_angles
+
+    db = get_client()
+    samples = preview_angles(
+        db, settings, limit=limit, require_revenue=require_revenue, diversify=diversify
+    )
+
+    path = Path(out)
+    path.write_text(_render_samples(samples, build_user_prompt), encoding="utf-8")
+    typer.echo(f"{len(samples)} sample angles → {path}")
+
+
+def _render_samples(samples: list, build_user_prompt) -> str:
+    """Render (lead, angle) pairs as a reviewable Markdown document."""
+    lines = [
+        "# Salgsvinkler — stikprøve",
+        "",
+        f"{len(samples)} leads. Intet er skrevet til `lead_angles` — det her er kun til gennemsyn.",
+        "",
+    ]
+    for i, (lead, angle) in enumerate(samples, start=1):
+        where = " · ".join(x for x in (lead.branche_text, lead.city) if x)
+        lines += [
+            "---",
+            "",
+            f"## {i}. {lead.company_name}",
+            "",
+            f"*{where}* · score {lead.score if lead.score is not None else '—'}"
+            f" · {lead.phone_type or 'ukendt nummertype'}",
+            "",
+            "### Åbning",
+            f"> {angle.opening_line_da}",
+            "",
+            "### Vinkel",
+            angle.angle_da,
+            "",
+            "### Book mødet",
+            f"> {angle.cta_da}",
+            "",
+        ]
+        if angle.objections:
+            lines.append("### Indvendinger")
+            for o in angle.objections:
+                lines += [f"- **{o['objection_da']}**", f"  → {o['response_da']}"]
+            lines.append("")
+        lines += [
+            "### Resumé",
+            angle.summary_da,
+            "",
+            "### Hvor tiden og pengene går (intern)",
+            angle.weaknesses_da,
+            "",
+            "<details><summary>Brief modellen fik</summary>",
+            "",
+            "```",
+            build_user_prompt(lead),
+            "```",
+            "",
+            "</details>",
+            "",
+        ]
+    return "\n".join(lines)
 
 
 @app.command(name="find-phones")

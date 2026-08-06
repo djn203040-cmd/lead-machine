@@ -50,12 +50,12 @@ const PHONE_TYPE_META: Record<PhoneType, PhoneTypeMeta> = {
   landline: {
     label: "Fastnet — hovednummer",
     className: "chip-amber",
-    hint: "Butikkens hovedtelefon — en medarbejder kan tage den. Nævn demoen kort og spørg efter ejeren.",
+    hint: "Butikkens hovedtelefon — en medarbejder kan tage den. Sig kort hvorfor du ringer og spørg efter ejeren.",
   },
   service: {
     label: "70-nummer — omstilling",
     className: "chip-rose",
-    hint: "Virksomhedens omstilling — aldrig ejeren direkte. Nævn demoen kort og bed om den rigtige person.",
+    hint: "Virksomhedens omstilling — aldrig ejeren direkte. Sig kort hvorfor du ringer og bed om den rigtige person.",
   },
 };
 

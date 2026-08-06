@@ -9,6 +9,8 @@ one place (no drift between "run a stage by hand" and "run the queue").
 ``enrich_queued`` is the web app's counterpart: discovery marks a lead
 ``enrichment_status='queued'`` when the user opts in; this walks the queued set
 through qualify → financial → score → angles and flips it to ``enriched``.
+Financial enrichment matters most under the savings offer: the revenue estimate
+is what the DKK savings number (and therefore the whole pitch) rests on.
 """
 
 from __future__ import annotations
@@ -271,6 +273,90 @@ def score_leads(
     return run_scoring(leads, SupabaseScoreWriter(db), weights=weights)
 
 
+def _angle_leads(
+    db: Client,
+    *,
+    limit: int,
+    only_missing: bool = True,
+    lead_ids: list[str] | None = None,
+    require_revenue: bool = False,
+    diversify: bool = False,
+) -> list[Any]:
+    """Select and map the leads an angle should be written for.
+
+    No website_need filter: the savings pitch doesn't need a qualified site — a
+    lead we can call and size is a lead we can pitch. ``require_revenue`` keeps
+    only leads we can quote a DKK figure for (used by the preview, so a sample
+    actually exercises the money math); ``diversify`` spreads the result across
+    branche groups instead of returning the top-scoring cluster.
+    """
+    from .angles.models import LeadForAngle
+    from .financial.estimate import band_midpoint
+    from .financial.savings import group_for
+    from .website import best_phone_type
+
+    query = db.table("leads").select(
+        "id,company_name,city,branche_text,branchekode,website_need,employees_band,"
+        "employees_exact,score,phone,lead_enrichment(website,social,financial),"
+        "lead_scores(breakdown),lead_angles(lead_id)"
+    )
+    # Over-fetch when diversifying: we drop most of the pool picking a spread,
+    # and take the best-scoring candidates so a sample reads like a real
+    # calling block rather than an arbitrary page of the table.
+    scoped = _scope(query, lead_ids)
+    if diversify:
+        scoped = scoped.order("score", desc=True, nullsfirst=False)
+    res = scoped.limit(limit * 10 if diversify else limit).execute()
+
+    leads: list[Any] = []
+    for row in res.data or []:
+        if only_missing and _one(row.get("lead_angles")):
+            continue
+        # Phone-first: don't spend a Claude call pitching a lead we can't call.
+        if not (row.get("phone") or []):
+            continue
+        enr = _one(row.get("lead_enrichment")) or {}
+        financial = enr.get("financial") or {}
+        if require_revenue and not ((financial.get("revenue_estimate") or {}).get("value")):
+            continue
+        scores = _one(row.get("lead_scores")) or {}
+        leads.append(
+            LeadForAngle(
+                lead_id=row["id"],
+                company_name=row["company_name"],
+                city=row.get("city"),
+                branche_text=row.get("branche_text"),
+                branchekode=row.get("branchekode"),
+                website_need=row.get("website_need") or "unknown",
+                employees=row.get("employees_exact") or band_midpoint(row.get("employees_band")),
+                score=row.get("score"),
+                phone_type=best_phone_type(row.get("phone")),
+                website=enr.get("website") or {},
+                financial=financial,
+                social=enr.get("social") or {},
+                score_breakdown=scores.get("breakdown") or {},
+            )
+        )
+
+    if not diversify:
+        return leads[:limit]
+
+    # Round-robin over branche groups so a sample shows the angle across the
+    # book's verticals, not twenty variations of the same trade.
+    buckets: dict[str, list[Any]] = {}
+    for lead in leads:
+        buckets.setdefault(group_for(lead.branchekode) or "other", []).append(lead)
+    spread: list[Any] = []
+    while len(spread) < limit and any(buckets.values()):
+        for group in list(buckets):
+            if not buckets[group]:
+                continue
+            spread.append(buckets[group].pop(0))
+            if len(spread) == limit:
+                break
+    return spread
+
+
 def generate_angles(
     db: Client,
     settings: Settings,
@@ -280,49 +366,44 @@ def generate_angles(
     lead_ids: list[str] | None = None,
 ) -> Any:
     from .angles import ClaudeAnglesClient, SupabaseAngleWriter, run_angles
-    from .angles.models import LeadForAngle
-    from .financial.estimate import band_midpoint
-    from .website import best_phone_type
 
-    query = (
-        db.table("leads")
-        .select(
-            "id,company_name,city,branche_text,website_need,employees_band,employees_exact,"
-            "score,phone,lead_enrichment(website,social,financial),lead_scores(breakdown),"
-            "lead_angles(lead_id)"
-        )
-        .neq("website_need", "unknown")
-    )
-    res = _scope(query, lead_ids).limit(limit).execute()
-
-    leads = []
-    for row in res.data or []:
-        if only_missing and _one(row.get("lead_angles")):
-            continue
-        # Phone-first: don't spend a Claude call pitching a lead we can't call.
-        if not (row.get("phone") or []):
-            continue
-        enr = _one(row.get("lead_enrichment")) or {}
-        scores = _one(row.get("lead_scores")) or {}
-        leads.append(
-            LeadForAngle(
-                lead_id=row["id"],
-                company_name=row["company_name"],
-                city=row.get("city"),
-                branche_text=row.get("branche_text"),
-                website_need=row.get("website_need") or "unknown",
-                employees=row.get("employees_exact") or band_midpoint(row.get("employees_band")),
-                score=row.get("score"),
-                phone_type=best_phone_type(row.get("phone")),
-                website=enr.get("website") or {},
-                financial=enr.get("financial") or {},
-                social=enr.get("social") or {},
-                score_breakdown=scores.get("breakdown") or {},
-            )
-        )
-
+    leads = _angle_leads(db, limit=limit, only_missing=only_missing, lead_ids=lead_ids)
     with ClaudeAnglesClient.from_settings(settings) as client:
         return run_angles(leads, client, SupabaseAngleWriter(db))
+
+
+def preview_angles(
+    db: Client,
+    settings: Settings,
+    *,
+    limit: int,
+    require_revenue: bool = True,
+    diversify: bool = True,
+) -> list[tuple[Any, Any]]:
+    """Generate angles for a sample of leads **without persisting anything**.
+
+    The point is to read a prompt change before it rewrites the whole book:
+    nothing is written to ``lead_angles``, so a bad batch costs only tokens.
+    Returns ``(LeadForAngle, Angle)`` pairs; a lead whose generation fails is
+    skipped rather than failing the sample.
+    """
+    from .angles import ClaudeAnglesClient, generate_one
+
+    leads = _angle_leads(
+        db,
+        limit=limit,
+        only_missing=False,
+        require_revenue=require_revenue,
+        diversify=diversify,
+    )
+    out: list[tuple[Any, Any]] = []
+    with ClaudeAnglesClient.from_settings(settings) as client:
+        for lead in leads:
+            try:
+                out.append((lead, generate_one(lead, client)))
+            except Exception:
+                continue
+    return out
 
 
 def enrich_queued(db: Client, settings: Settings, *, limit: int = 200) -> dict[str, Any]:

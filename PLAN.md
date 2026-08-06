@@ -54,20 +54,35 @@ CVR discovery ─► leads (dedup by CVR#) ─► website qualification ─► f
 | **Qualify** | DNS + TLS (`dnspython`, `ssl`) | **Free** | dead / parked detection (NXDOMAIN, parking nameservers, HTTP final status, cert validity) |
 | **Qualify** | PageSpeed Insights API | **Free** | 25k/day; `strategy=mobile`; lab scores + red-flag audits (small DK sites have no CrUX) |
 | **Enrich** | Virk XBRL `distribution.virk.dk/offentliggoerelser` | **Free**, unauth | `GrossProfitLoss`, `ProfitLoss`, `Equity`, employees; **revenue often legally omitted (klasse B) → estimate** |
-| **Angles** | Claude API | ~cents/lead | Danish sales angles |
+| **Angles** | Claude API | ~cents/lead | Danish sales angles built on the savings estimate |
 | **Enrich (opt.)** | datacvrapi.dk / CVR Intel | ~199–499 DKK/mo | Only if pre-parsed financials/revenue become worth it |
 | **(V2) Reviews** | Google Places free tier / Trustpilot public Business Units API | Free tier | **Deferred to V2** |
 
-## 5. Scoring — tuned for selling websites
+## 5. Scoring — tuned for the savings offer
 
-**0–100, hard-gated.** Weights: **Website-need 45 / Budget proxy 20 / Cares-about-presence 15 / Industry fit 12 / Recency 8.**
+**The offer:** we follow a business for a period, build the systems that remove
+its manual work, and charge **20% of what we actually save it**. Nothing up
+front; nothing saved, nothing paid. So the best lead is the one where the most
+money can realistically be saved.
 
-- **Hard gates (excluded / score 0):** `reklamebeskyttelse` set; company status inactive / bankrupt / under dissolution.
-- **Website-need ladder (highest → lowest):** no website → dead/parked → Facebook-only → bad (no viewport / no HTTPS / legacy markup / old CMS / low PageSpeed) → outdated → modern (deprioritize).
-- **Budget proxy:** employee band (2–20 ideal) + gross profit / equity where filed.
-- **Cares-about-presence:** has a FB page / Meta Pixel / socials (markets online → values web).
+**The number (`financial/savings.py`):** realistic annual saving ≈ **10% of
+revenue**, sector-adjusted down where revenue is mostly pass-through cost
+(retail 6%, auto/transport 7%) and up for time-and-admin sectors (12%), then
+capped by **30% of gross profit** (you can only save out of the margin they
+keep) and by **150k DKK per employee** (only so many hands to free up). Quoted
+as a conservative → baseline **band**, never a promise, with the confidence
+inherited from the revenue estimate.
 
-Full rubric + field list: [`RESEARCH-lead-qualification-2026.md`](./RESEARCH-lead-qualification-2026.md). The old `leadforge` scoring (rewarded modern sites + "no ads") is **inverted** for this offer.
+**0–100, hard-gated.** Weights: **Savings potential 40 / Industry fit 20 /
+Digital maturity 15 / Online presence 10 / Size 8 / Recency 7.**
+
+- **Hard gates (excluded / score 0):** `reklamebeskyttelse` set; company status inactive / bankrupt / under dissolution; **no phone number** (outreach is phone-first).
+- **Savings potential:** peaks at an estimated 250k–1M DKK/year — big enough that our 20% is real income, small enough that a local owner still decides alone.
+- **Industry fit:** catalogued local-service verticals run on bookings, shifts, quotes and follow-up — exactly the manual work the systems remove.
+- **Digital maturity (was "website-need 45"):** demoted to 15 and **inverted back**. A business already running a real site understands tools and buys systems faster; one with nothing online has the most manual work but is the slowest, most hands-on sale. It is an indicator now, not the thing being sold.
+- **Online presence:** has a FB page / Meta Pixel (markets online → has budget and commercial intent).
+
+Full field list: [`RESEARCH-lead-qualification-2026.md`](./RESEARCH-lead-qualification-2026.md) (written for the earlier website offer — the signals still apply, the ranking does not).
 
 ## 6. Scope
 
@@ -80,11 +95,11 @@ Full rubric + field list: [`RESEARCH-lead-qualification-2026.md`](./RESEARCH-lea
 |---|---|---|
 | **M0** | Foundation & scaffolding | Monorepo, Supabase project, schema + RLS, auth, CI |
 | **M1** | CVR discovery engine | Find all businesses of a type in an area, dedup by CVR#, suppress protected |
-| **M2** | Website qualification | Detect & score "no/bad website" (the core qualifier) |
+| **M2** | Website qualification | Detect the site & grade it — now a digital-maturity signal, not the pitch |
 | **M3** | Firmographic & financial enrichment | Employees, status, founding, P-units; XBRL financials + revenue estimate |
-| **M4** | Lead scoring & qualification gate | 0–100 website-selling score + hard gates + ranking |
+| **M4** | Lead scoring & qualification gate | 0–100 savings-potential score + hard gates + ranking |
 | **M5** | Leads dashboard | Search-with-filters UI, leads table, lead detail, pipeline |
-| **M6** | AI Danish sales angles | Claude-generated pitch angles + "make demo" hook |
+| **M6** | AI Danish sales angles | Claude-generated pitch angles built on the savings math |
 | **M7** | Compliance, deploy & ship V1 | LIA/privacy/suppression, deploy, observability, E2E |
 | **V2** | Reviews, reputation & outreach | Deferred enhancements |
 

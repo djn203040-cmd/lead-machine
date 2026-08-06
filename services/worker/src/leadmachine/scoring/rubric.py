@@ -1,8 +1,15 @@
-"""The website-selling scoring rubric (M4, PLAN §5).
+"""The scoring rubric (M4, PLAN §5) — **savings offer, v2**.
 
-Weights sum to 100 across five factors — **website-need 45, budget 20,
-presence 15, industry 12, recency 8** — and the whole rubric is *inverted* vs
-the old leadforge: **no / dead / parked / facebook-only / bad site = best lead.**
+We no longer sell websites, so the rubric no longer ranks "who lacks a site".
+We follow a business, build systems that remove its manual work, and take 20% of
+what is actually saved — so the best lead is simply **the one where the most
+money can realistically be saved**, in a sector whose day-to-day is full of the
+manual work we remove.
+
+Weights sum to 100 across six factors — **savings 40, industry 20, tech 15,
+presence 10, size 8, recency 7**. The website signal survives at 15, demoted
+from the old 45: it no longer says what we're selling, only how digitally
+mature (and therefore how easy to talk systems with) the business is.
 
 All numbers live on :class:`Weights` so they are tunable from the database:
 :meth:`Weights.from_criteria` overlays the seeded ``scoring_criteria`` rows, so
@@ -18,80 +25,90 @@ from typing import Any
 from ..cvr.branchekoder import all_branches, by_code, normalize_code
 from ..cvr.query import ACTIVE_STATUSES
 from ..financial.estimate import band_midpoint
+from ..financial.savings import estimate_savings
 from .models import FactorScore
-
-# Buckets where the business has no usable site of their own → max website-need.
-_FULL_NEED_FIELD: dict[str, str] = {
-    "none": "w_none",
-    "dead": "w_dead_parked",
-    "parked": "w_dead_parked",
-    "facebook_only": "w_facebook",
-    "not_independent": "w_not_independent",
-}
 
 # DB07 2-digit divisions our catalog targets — a non-catalogued code in one of
 # these is "marginal" (local-service adjacent); anything else is "poor".
 _CATALOG_DIVISIONS: frozenset[str] = frozenset(b.code[:2] for b in all_branches())
 
-OUTDATED_COPYRIGHT_GAP = 3  # footer year this many years old ⇒ "old copyright"
 RECENT_FOUNDED_YEARS = 3
 MID_FOUNDED_YEARS = 8
+
+# website_need → the Weights field holding its digital-maturity points.
+_TECH_FIELD: dict[str, str] = {
+    "modern": "t_modern",
+    "bad": "t_bad",
+    "outdated": "t_outdated",
+    "facebook_only": "t_facebook",
+    "not_independent": "t_not_independent",
+    "none": "t_none",
+    "dead": "t_dead_parked",
+    "parked": "t_dead_parked",
+}
 
 
 @dataclass(slots=True)
 class Weights:
-    """Every tunable number in the rubric (defaults = PLAN §5).
+    """Every tunable number in the rubric.
 
     Factor caps sum to 100. The ``cap_*`` fields bound each factor; the rest are
     the per-signal points summed within a factor.
     """
 
     # factor caps (sum = 100)
-    cap_website: int = 45
-    cap_budget: int = 20
-    cap_presence: int = 15
-    cap_industry: int = 12
-    cap_recency: int = 8
+    cap_savings: int = 40
+    cap_industry: int = 20
+    cap_tech: int = 15
+    cap_presence: int = 10
+    cap_size: int = 8
+    cap_recency: int = 7
 
-    # website-need buckets
-    w_none: int = 45  # criterion: no_website
-    w_dead_parked: int = 45  # criterion: dead_or_parked
-    w_facebook: int = 45  # criterion: facebook_only
-    w_not_independent: int = 45  # criterion: not_independent (site on a shared platform)
-    w_bad_floor: int = 23  # criterion: bad_website (floor; capped at cap_website)
-    w_outdated: int = 22
-    w_modern: int = 4
+    # savings potential, by estimated annual saving (band midpoint, DKK).
+    # The curve peaks in the 250k–1M range: big enough that our 20% is a real
+    # income, small enough that a local owner still decides alone and fast.
+    sav_unknown: int = 12  # criterion: savings_unknown (no revenue signal yet)
+    sav_tiny: int = 6  # < 25k — too little to be worth the engagement
+    sav_small: int = 14  # 25–50k
+    sav_mid: int = 24  # 50–100k
+    sav_good: int = 34  # 100–250k
+    sav_prime: int = 40  # criterion: savings_potential — 250k–1M, the sweet spot
+    sav_large: int = 34  # 1–3M — real money, but a longer, more committee-ish sale
+    sav_enterprise: int = 24  # > 3M — outside a one-call-close local business
 
-    # website "bad" sub-signals (sum, capped at cap_website)
-    s_no_viewport: int = 12  # criterion: not_mobile_friendly
-    s_no_https: int = 10  # criterion: no_https
-    s_legacy: int = 8
-    s_old_copyright: int = 6
-    s_psi_low: int = 6  # criterion: low_pagespeed (<50)
-    s_psi_mid: int = 3  # 50–69
-    s_one_page: int = 3
-
-    # budget by employee count
-    b_solo: int = 4  # 0 / 1 / unknown
-    b_2_4: int = 10
-    b_5_9: int = 16
-    b_10_49: int = 20  # criterion: employees_target (the ideal band)
-    b_50_plus: int = 14
-    fin_gross: int = 2  # criterion: has_gross_profit
-    fin_equity: int = 2
-
-    # presence (markets online → values web)
-    p_fb: int = 8  # criterion: cares_online_presence
-    p_pixel: int = 7
-
-    # industry tiers
-    i_local: int = 12
-    i_marginal: int = 6
+    # industry tiers — catalogued local service = the manual-work-heavy target
+    i_local: int = 20  # criterion: industry_local_service
+    i_marginal: int = 10
     i_poor: int = 0
+
+    # digital maturity, read off website_need. A business that is already
+    # digital is the *easiest* systems conversation; one with nothing online is
+    # the biggest raw upside but the hardest sell — so this runs the other way
+    # round from the old website-need rubric.
+    t_modern: int = 15  # criterion: digital_mature
+    t_bad: int = 11  # criterion: bad_website
+    t_outdated: int = 11
+    t_facebook: int = 9  # criterion: facebook_only
+    t_not_independent: int = 8  # criterion: not_independent
+    t_none: int = 5  # criterion: no_website
+    t_dead_parked: int = 5  # criterion: dead_or_parked
+    t_unknown: int = 6  # not qualified yet — don't punish, don't reward
+    t_quality_bonus: int = 3  # live site graded modern/premium
+
+    # presence — markets online ⇒ commercially minded, already spends on growth
+    p_fb: int = 4  # criterion: cares_online_presence
+    p_pixel: int = 6  # criterion: runs_paid_ads
+
+    # size — headcount as a proxy for how many processes there are to systematise
+    z_solo: int = 2  # 0 / 1 / unknown
+    z_2_4: int = 5
+    z_5_9: int = 7
+    z_10_49: int = 8  # criterion: employees_target (the ideal band)
+    z_50_plus: int = 6
 
     # recency
     r_active: int = 4
-    r_founded_recent: int = 4  # criterion: recently_founded (≤3y)
+    r_founded_recent: int = 3  # criterion: recently_founded (≤3y)
     r_founded_mid: int = 2  # ≤8y
 
     @classmethod
@@ -124,23 +141,20 @@ class Weights:
 
 # Seeded scoring_criteria.key -> the Weights field it tunes.
 CRITERION_FIELD: dict[str, str] = {
-    "no_website": "w_none",
-    "dead_or_parked": "w_dead_parked",
-    "facebook_only": "w_facebook",
-    "not_independent": "w_not_independent",
-    "bad_website": "w_bad_floor",
-    "not_mobile_friendly": "s_no_viewport",
-    "no_https": "s_no_https",
-    "low_pagespeed": "s_psi_low",
-    "employees_target": "b_10_49",
-    "has_gross_profit": "fin_gross",
+    "savings_potential": "sav_prime",
+    "savings_unknown": "sav_unknown",
+    "industry_local_service": "i_local",
+    "digital_mature": "t_modern",
+    "bad_website": "t_bad",
+    "facebook_only": "t_facebook",
+    "not_independent": "t_not_independent",
+    "no_website": "t_none",
+    "dead_or_parked": "t_dead_parked",
     "cares_online_presence": "p_fb",
+    "runs_paid_ads": "p_pixel",
+    "employees_target": "z_10_49",
     "recently_founded": "r_founded_recent",
 }
-
-
-def _clamp(value: int, lo: int, hi: int) -> int:
-    return max(lo, min(hi, value))
 
 
 def gate_reason(
@@ -164,106 +178,95 @@ def gate_reason(
     return None
 
 
-def _bad_subpoints(
-    signals: dict[str, Any], pagespeed: dict[str, Any], w: Weights, year: int
-) -> tuple[int, dict[str, int]]:
-    points = 0
-    detail: dict[str, int] = {}
-    if signals.get("has_viewport") is False:
-        points += w.s_no_viewport
-        detail["no_viewport"] = w.s_no_viewport
-    if signals.get("has_https") is False:
-        points += w.s_no_https
-        detail["no_https"] = w.s_no_https
-    if signals.get("legacy_markup"):
-        points += w.s_legacy
-        detail["legacy"] = w.s_legacy
-    copyright_year = signals.get("copyright_year")
-    if isinstance(copyright_year, int) and copyright_year <= year - OUTDATED_COPYRIGHT_GAP:
-        points += w.s_old_copyright
-        detail["old_copyright"] = w.s_old_copyright
-    perf = pagespeed.get("performance")
-    if isinstance(perf, (int, float)):
-        if perf < 50:
-            points += w.s_psi_low
-            detail["psi_low"] = w.s_psi_low
-        elif perf < 70:
-            points += w.s_psi_mid
-            detail["psi_mid"] = w.s_psi_mid
-    if signals.get("is_one_page"):
-        points += w.s_one_page
-        detail["one_page"] = w.s_one_page
-    return points, detail
+def _savings_points(midpoint: float, w: Weights) -> tuple[int, str]:
+    if midpoint < 25_000:
+        return w.sav_tiny, "tiny"
+    if midpoint < 50_000:
+        return w.sav_small, "small"
+    if midpoint < 100_000:
+        return w.sav_mid, "mid"
+    if midpoint < 250_000:
+        return w.sav_good, "good"
+    if midpoint < 1_000_000:
+        return w.sav_prime, "prime"
+    if midpoint < 3_000_000:
+        return w.sav_large, "large"
+    return w.sav_enterprise, "enterprise"
 
 
-def score_website_need(
-    website_need: str, website: dict[str, Any], w: Weights, today: date
+def score_savings(
+    financial: dict[str, Any],
+    branchekode: str | None,
+    w: Weights,
+    employees: int | None = None,
 ) -> FactorScore:
-    """The dominant factor (45). ``none/dead/parked/facebook_only`` max out;
-    ``bad`` is graded from its signals; ``outdated``/``modern`` are deprioritized."""
+    """The dominant factor (40): how much money we can realistically free up.
+
+    This *is* the deal size — our fee is 20% of it — so it outranks everything
+    else. With no revenue signal the lead is unknown rather than bad, and scores
+    a neutral middle so it still surfaces for a call.
+    """
+    savings = estimate_savings(financial, branchekode, employees)
+    if savings is None:
+        return FactorScore(
+            min(w.sav_unknown, w.cap_savings), w.cap_savings, {"band": "unknown"}
+        )
+
+    midpoint = (savings.annual_low + savings.annual_high) / 2
+    points, band = _savings_points(midpoint, w)
+    detail: dict[str, Any] = {
+        "band": band,
+        "annual_low": savings.annual_low,
+        "annual_high": savings.annual_high,
+        "fee_low": savings.fee_low,
+        "fee_high": savings.fee_high,
+        "rate": savings.rate,
+        "confidence": savings.confidence,
+    }
+    if savings.capped_by:
+        detail["capped_by"] = savings.capped_by
+    return FactorScore(min(points, w.cap_savings), w.cap_savings, detail)
+
+
+def score_industry(branchekode: str | None, w: Weights) -> FactorScore:
+    """Industry fit (20): catalogued local-service verticals score highest —
+    they run on bookings, shifts, quotes and follow-up, which is exactly the
+    manual work the systems remove."""
+    if not branchekode:
+        return FactorScore(w.i_poor, w.cap_industry, {"tier": "poor"})
+    code = normalize_code(branchekode)
+    if by_code(code) is not None:
+        tier, points = "local_service", w.i_local
+    elif code[:2] in _CATALOG_DIVISIONS:
+        tier, points = "marginal", w.i_marginal
+    else:
+        tier, points = "poor", w.i_poor
+    return FactorScore(
+        min(points, w.cap_industry), w.cap_industry, {"tier": tier, "branchekode": code}
+    )
+
+
+def score_tech(website_need: str, website: dict[str, Any], w: Weights) -> FactorScore:
+    """Digital maturity (15): how easy this business is to talk systems with.
+
+    Not a need-signal any more — an indicator. A business already running a real
+    site understands tools and buys systems faster; one with nothing online has
+    the most manual work but is the slowest, most hands-on sale.
+    """
+    field_name = _TECH_FIELD.get(website_need)
+    points = getattr(w, field_name) if field_name else w.t_unknown
     detail: dict[str, Any] = {"need": website_need}
 
-    if website_need in _FULL_NEED_FIELD:
-        points = getattr(w, _FULL_NEED_FIELD[website_need])
-    elif website_need == "bad":
-        signals = (website or {}).get("signals") or {}
-        pagespeed = (website or {}).get("pagespeed") or {}
-        raw, sub = _bad_subpoints(signals, pagespeed, w, today.year)
-        detail["signals"] = sub
-        points = _clamp(raw, w.w_bad_floor, w.cap_website)
-        if raw < w.w_bad_floor:
-            detail["floored_to"] = w.w_bad_floor
-    elif website_need == "outdated":
-        points = w.w_outdated
-    elif website_need == "modern":
-        points = w.w_modern
-    else:  # "unknown" or anything unexpected — not yet qualified
-        points = 0
+    tier = ((website or {}).get("quality") or {}).get("tier")
+    if tier in ("modern", "premium"):
+        points += w.t_quality_bonus
+        detail["quality"] = tier
 
-    return FactorScore(min(points, w.cap_website), w.cap_website, detail)
-
-
-def _band_points(employees: int | None, w: Weights) -> tuple[int, dict[str, Any]]:
-    if employees is None:
-        return w.b_solo, {"employees": None}
-    if employees <= 1:
-        return w.b_solo, {"employees": employees}
-    if employees <= 4:
-        return w.b_2_4, {"employees": employees}
-    if employees <= 9:
-        return w.b_5_9, {"employees": employees}
-    if employees <= 49:
-        return w.b_10_49, {"employees": employees}
-    return w.b_50_plus, {"employees": employees}
-
-
-def score_budget(
-    employees_exact: int | None,
-    employees_band: str | None,
-    financial: dict[str, Any],
-    w: Weights,
-) -> FactorScore:
-    """Budget proxy (20): employee band (2–49 ideal) + a small financial bump."""
-    employees = employees_exact if employees_exact is not None else band_midpoint(employees_band)
-    base, detail = _band_points(employees, w)
-    detail["band_points"] = base
-
-    bump = 0
-    fin = financial or {}
-    gross = fin.get("gross_profit")
-    equity = fin.get("equity")
-    if isinstance(gross, (int, float)) and gross > 0:
-        bump += w.fin_gross
-    if isinstance(equity, (int, float)) and equity > 0:
-        bump += w.fin_equity
-    if bump:
-        detail["financial_bump"] = bump
-
-    return FactorScore(min(w.cap_budget, base + bump), w.cap_budget, detail)
+    return FactorScore(min(points, w.cap_tech), w.cap_tech, detail)
 
 
 def score_presence(social: dict[str, Any], w: Weights) -> FactorScore:
-    """Cares-about-presence (15): a business that markets online values a site."""
+    """Presence (10): a business already spending on reach has budget and intent."""
     social = social or {}
     points = 0
     detail: dict[str, Any] = {}
@@ -276,19 +279,26 @@ def score_presence(social: dict[str, Any], w: Weights) -> FactorScore:
     return FactorScore(min(w.cap_presence, points), w.cap_presence, detail)
 
 
-def score_industry(branchekode: str | None, w: Weights) -> FactorScore:
-    """Industry fit (12): catalogued local-service verticals score highest."""
-    if not branchekode:
-        return FactorScore(w.i_poor, w.cap_industry, {"tier": "poor"})
-    code = normalize_code(branchekode)
-    if by_code(code) is not None:
-        tier, points = "local_service", w.i_local
-    elif code[:2] in _CATALOG_DIVISIONS:
-        tier, points = "marginal", w.i_marginal
-    else:
-        tier, points = "poor", w.i_poor
+def _size_points(employees: int | None, w: Weights) -> int:
+    if employees is None or employees <= 1:
+        return w.z_solo
+    if employees <= 4:
+        return w.z_2_4
+    if employees <= 9:
+        return w.z_5_9
+    if employees <= 49:
+        return w.z_10_49
+    return w.z_50_plus
+
+
+def score_size(
+    employees_exact: int | None, employees_band: str | None, w: Weights
+) -> FactorScore:
+    """Size (8): more people ⇒ more coordination, shifts and admin to systematise."""
+    employees = employees_exact if employees_exact is not None else band_midpoint(employees_band)
+    points = _size_points(employees, w)
     return FactorScore(
-        min(points, w.cap_industry), w.cap_industry, {"tier": tier, "branchekode": code}
+        min(points, w.cap_size), w.cap_size, {"employees": employees, "points": points}
     )
 
 
@@ -305,7 +315,7 @@ def _age_years(founded_at: str | None, today: date) -> float | None:
 def score_recency(
     cvr_status: str | None, founded_at: str | None, w: Weights, today: date
 ) -> FactorScore:
-    """Recency (8): an active company, bonus for a recent founding."""
+    """Recency (7): an active company, bonus for a recent founding."""
     points = 0
     detail: dict[str, Any] = {}
     status = (cvr_status or "").strip().upper()

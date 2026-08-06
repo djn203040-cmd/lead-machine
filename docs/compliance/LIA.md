@@ -2,7 +2,7 @@
 
 **Controller:** _[company name + CVR — fill in before go-live]_
 **Processing:** B2B lead generation — discovering, qualifying and contacting
-Danish businesses to offer website/online-presence services.
+Danish businesses to offer operational-efficiency services (paid as a share of documented savings).
 **Legal basis:** GDPR Art. 6(1)(f) — legitimate interests.
 **Version:** 1.0 · **Last reviewed:** _[date]_ · **Owner:** _[DPO / responsible person]_
 
@@ -26,7 +26,7 @@ published annual reports). Personal data enters only in two places:
 
 Sole-trader contact data is treated as **personal data** throughout. We process
 **no special-category data** and do **no profiling with legal/​significant
-effects** — scoring ranks businesses by website need, it does not make automated
+effects** — scoring ranks businesses by estimated savings potential, it does not make automated
 decisions about individuals.
 
 ## 2. Purpose test — is there a legitimate interest?

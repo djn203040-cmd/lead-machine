@@ -24,6 +24,33 @@ def test_gross_margin_backout() -> None:
     assert est.confidence == "medium"
 
 
+def test_implausible_backout_defers_to_headcount() -> None:
+    """A stub/part-period filing must not shrink a real business to nothing.
+
+    Six people do not run a café on 470k a year — food_drink backs out at
+    gross_margin 0.65, which is less than half the 6 × 650k the headcount
+    implies, so the filing is rejected in favour of the per-employee estimate.
+    """
+    est = estimate_revenue(Financials(gross_profit=306_627), "561110", 6)
+    assert est is not None
+    assert est.method == "per_employee"
+    assert est.value == 6 * 650_000
+    assert est.confidence == "low"
+    assert est.inputs["rejected_backout"] == round(306_627 / 0.65)
+
+
+def test_plausible_backout_is_kept() -> None:
+    est = estimate_revenue(Financials(gross_profit=2_000_000), "561110", 6)
+    assert est is not None
+    assert est.method == "gross_margin_backout"
+
+
+def test_backout_without_headcount_is_still_used() -> None:
+    est = estimate_revenue(Financials(gross_profit=100_000), "561110", None)
+    assert est is not None
+    assert est.method == "gross_margin_backout"
+
+
 def test_per_employee_when_no_financials() -> None:
     est = estimate_revenue(Financials(), "960210", 4)
     assert est is not None

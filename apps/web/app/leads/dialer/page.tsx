@@ -2,6 +2,7 @@ import Link from "next/link";
 import { codesInGroup } from "@/lib/branchekoder";
 import type { Tables } from "@/lib/database.types";
 import { objections } from "@/lib/enrichment";
+import { savingsFromBreakdown } from "@/lib/savings";
 import { createClient } from "@/lib/supabase/server";
 import Dialer, { type DialerLead } from "./_components/Dialer";
 import DialerFilterBar, { type DialerFilters } from "./_components/DialerFilterBar";
@@ -95,7 +96,7 @@ export default async function DialerPage({
           )
           .in("lead_id", ids),
         supabase.from("lead_enrichment").select("lead_id, financial, contact").in("lead_id", ids),
-        supabase.from("lead_scores").select("lead_id, total").in("lead_id", ids),
+        supabase.from("lead_scores").select("lead_id, total, breakdown").in("lead_id", ids),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }];
 
@@ -106,15 +107,18 @@ export default async function DialerPage({
     ((enrichRes.data ?? []) as Tables<"lead_enrichment">[]).map((e) => [e.lead_id, e]),
   );
   const scoreBy = new Map(
-    ((scoresRes.data ?? []) as Tables<"lead_scores">[]).map((s) => [s.lead_id, s.total]),
+    ((scoresRes.data ?? []) as Tables<"lead_scores">[]).map((s) => [s.lead_id, s]),
   );
 
   const queue: DialerLead[] = rows.map((l) => {
     const a = angleBy.get(l.id);
     const e = enrichBy.get(l.id);
+    const sc = scoreBy.get(l.id);
     return {
       ...l,
-      score: scoreBy.get(l.id) ?? l.score,
+      score: sc?.total ?? l.score,
+      // The savings band the pitch quotes — lives in the score breakdown.
+      savings: savingsFromBreakdown(sc?.breakdown),
       angle: a
         ? {
             opening_line_da: a.opening_line_da,

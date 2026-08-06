@@ -13,7 +13,7 @@
 **Dataansvarlig:** [virksomhedsnavn], CVR [nr.], [adresse], [e-mail], [telefon].
 
 Vi indsamler oplysninger om danske virksomheder for at kunne kontakte relevante
-virksomheder med tilbud om hjemmeside- og online-løsninger.
+virksomheder med tilbud om drifts- og automatiseringsløsninger, der sparer tid og penge.
 
 ### Hvilke oplysninger behandler vi?
 Firmaoplysninger (navn, adresse, CVR-nummer, branche, antal ansatte, offentligt
@@ -53,7 +53,7 @@ os på [e-mail/telefon]. Du kan klage til **Datatilsynet** (datatilsynet.dk).
 ### English summary
 We process company data (and, for sole traders, personal data of the owner)
 **obtained from the Danish CVR register** and public sources, to contact
-businesses **by phone** with website/online-presence offers. Legal basis:
+businesses **by phone** with operational-efficiency offers. Legal basis:
 legitimate interests, Art. 6(1)(f). We do not send unsolicited marketing
 email/SMS (Marketing Practices Act §10). You have the right of access,
 rectification, erasure, and an **absolute right to object to direct marketing**

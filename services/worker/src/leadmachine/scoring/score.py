@@ -16,15 +16,17 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Iterable, Protocol
 
+from ..financial.estimate import band_midpoint
 from .models import LeadToScore, ScoreBreakdown
 from .rubric import (
     Weights,
     gate_reason,
-    score_budget,
     score_industry,
     score_presence,
     score_recency,
-    score_website_need,
+    score_savings,
+    score_size,
+    score_tech,
 )
 
 
@@ -57,10 +59,18 @@ def score_lead(
         return ScoreBreakdown(total=0, gated=True, gate_reason=reason)
 
     factors = {
-        "website_need": score_website_need(lead.website_need, lead.website, w, today),
-        "budget": score_budget(lead.employees_exact, lead.employees_band, lead.financial, w),
-        "presence": score_presence(lead.social, w),
+        "savings": score_savings(
+            lead.financial,
+            lead.branchekode,
+            w,
+            lead.employees_exact
+            if lead.employees_exact is not None
+            else band_midpoint(lead.employees_band),
+        ),
         "industry": score_industry(lead.branchekode, w),
+        "tech": score_tech(lead.website_need, lead.website, w),
+        "presence": score_presence(lead.social, w),
+        "size": score_size(lead.employees_exact, lead.employees_band, w),
         "recency": score_recency(lead.cvr_status, lead.founded_at, w, today),
     }
     total = max(0, min(100, sum(f.points for f in factors.values())))

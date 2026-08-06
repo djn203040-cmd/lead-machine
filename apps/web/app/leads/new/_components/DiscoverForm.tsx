@@ -105,9 +105,9 @@ export default function DiscoverForm() {
               Berig {promptIds.length} nye lead{promptIds.length === 1 ? "" : "s"}?
             </h2>
             <p className="mt-2 text-sm text-muted">
-              Berigelse tjekker hjemmeside, henter regnskab/omsætning, scorer leadet og
-              genererer en dansk salgsvinkel. Det kører automatisk i baggrunden og tager
-              typisk et par minutter.
+              Berigelse henter regnskab/omsætning, beregner den realistiske besparelse,
+              scorer leadet og genererer en dansk salgsvinkel. Det kører automatisk i
+              baggrunden og tager typisk et par minutter.
             </p>
             <div className="mt-5 flex gap-2">
               <button

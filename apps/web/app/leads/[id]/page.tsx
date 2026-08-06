@@ -28,6 +28,7 @@ import {
   parseBreakdown,
 } from "@/lib/score-breakdown";
 import { classifyPhone, phoneTypeMeta } from "@/lib/phone";
+import { savingsFromBreakdown } from "@/lib/savings";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import { PipelineBadge, ScoreChip, WebsiteNeedBadge } from "../_components/Badge";
 import PipelinePanel, {
@@ -62,8 +63,14 @@ function yesNo(value: boolean | null | undefined): string {
 }
 
 const COMPETITOR_ANGLE_DA: Record<string, string> = {
-  fomo: "FOMO — konkurrenter er mere synlige",
-  first_mover: "First mover — vær først/bedst lokalt",
+  fomo: "FOMO — andre i branchen automatiserer allerede",
+  first_mover: "First mover — først lokalt til at køre driften sådan",
+};
+
+const CAPPED_BY_DA: Record<string, string> = {
+  gross_profit: "skåret ned efter bruttofortjenesten",
+  headcount: "skåret ned efter antal ansatte",
+  ceiling: "loft sat — større end vores typiske kunde",
 };
 
 function AnglePart({ label, text }: { label: string; text: string | null }) {
@@ -130,6 +137,8 @@ export default async function LeadDetailPage({
   const scoreRow = scoreRes.data as Tables<"lead_scores"> | null;
   const angle = angleRes.data as Tables<"lead_angles"> | null;
   const breakdown = parseBreakdown(scoreRow?.breakdown);
+  // What the pitch quotes: realistic annual saving + our 20% of it.
+  const savings = savingsFromBreakdown(scoreRow?.breakdown);
   const notes = (notesRes.data ?? []) as NoteView[];
   const followups = (followupsRes.data ?? []) as FollowupView[];
 
@@ -169,6 +178,37 @@ export default async function LeadDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {savings && (
+            <section className="rounded-xl border border-teal-fg/25 bg-teal-bg p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-teal-fg">
+                  Realistisk besparelse — estimat
+                </h2>
+                <span className="text-xs text-teal-fg/80">
+                  {savings.rate !== null && `${Math.round(savings.rate * 100)}% af omsætning`}
+                  {savings.confidence && ` · ${savings.confidence} sikkerhed`}
+                  {savings.cappedBy &&
+                    ` · ${CAPPED_BY_DA[savings.cappedBy] ?? savings.cappedBy}`}
+                </span>
+              </div>
+              <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">
+                {formatDKK(savings.annualLow)} – {formatDKK(savings.annualHigh)}
+                <span className="ml-1 text-sm font-normal text-muted">om året</span>
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                Dit honorar (20% af det sparede):{" "}
+                <span className="font-medium text-ink">
+                  {formatDKK(savings.feeLow)} – {formatDKK(savings.feeHigh)}
+                </span>{" "}
+                om året
+              </p>
+              <p className="mt-2 text-xs text-faint">
+                Estimeret ud fra branche og størrelse — ikke deres regnskab. Sig det som et
+                typisk spænd, aldrig som et løfte.
+              </p>
+            </section>
+          )}
+
           {angle && (
             <section className="overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100/50 p-5 shadow-[var(--shadow-card)]">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -204,7 +244,10 @@ export default async function LeadDetailPage({
               )}
               <Objections items={objections(angle.objections)} />
               <AnglePart label="Resumé" text={angle.summary_da} />
-              <AnglePart label="Svagheder" text={angle.weaknesses_da} />
+              <AnglePart
+                label="Hvor tiden og pengene går (intern)"
+                text={angle.weaknesses_da}
+              />
             </section>
           )}
 
@@ -213,7 +256,7 @@ export default async function LeadDetailPage({
               {buildVoicemail({
                 firstName: voicemailFirstName(contact.decision_makers ?? []),
                 companyName: lead.company_name,
-                websiteNeed: lead.website_need,
+                branchekode: lead.branchekode,
               })}
             </blockquote>
             <p className="mt-2 text-xs text-faint">

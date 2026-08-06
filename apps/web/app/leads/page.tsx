@@ -151,7 +151,7 @@ export default async function LeadsPage({
           <h2 className="text-lg font-semibold text-ink">Ingen leads endnu</h2>
           <p className="max-w-sm text-sm text-muted">
             Ingen virksomheder matcher filtrene. Kør en søgning for at finde danske
-            virksomheder, der mangler en ordentlig hjemmeside.
+            virksomheder med nok omsætning til, at der er noget at spare.
           </p>
           <Link href="/leads/new" className="btn btn-primary mt-1">
             <span className="text-base leading-none">+</span> Find virksomheder

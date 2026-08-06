@@ -10,7 +10,7 @@
 
 1. **Identify** yourself + the company.
 2. **State the source:** "vi har fundet jer i CVR-registeret."
-3. **State the purpose:** a relevant website/online offer.
+3. **State the purpose:** a relevant offer to cut manual work and costs.
 4. **Point to the full notice** and the opt-out right.
 5. **Honour any objection immediately** → mark the lead suppressed (do not call
    again).
@@ -18,8 +18,9 @@
 ## Danish script (sole traders & company decision-makers)
 
 > "Hej, det er [navn] fra [virksomhed]. Jeg ringer, fordi vi har set i
-> **CVR-registeret**, at I [driver / ikke har en hjemmeside / …], og vi hjælper
-> lokale virksomheder med hjemmesider og online-synlighed.
+> **CVR-registeret**, at I [driver …], og vi hjælper lokale virksomheder med at
+> få det manuelle arbejde ud af hverdagen — I betaler kun en andel af det, vi
+> rent faktisk sparer jer.
 >
 > Helt kort om data: vi har jeres oplysninger fra det offentlige CVR-register,
 > og I kan læse vores privatlivspolitik på [link]. I kan til enhver tid bede os

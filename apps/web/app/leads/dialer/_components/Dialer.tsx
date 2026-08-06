@@ -11,6 +11,7 @@ import {
 } from "@/lib/enrichment";
 import { employeesLabel, formatDKK, pipelineMeta, websiteNeedMeta } from "@/lib/leadmeta";
 import { classifyPhone, phoneTypeMeta } from "@/lib/phone";
+import type { SavingsView } from "@/lib/savings";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import { logOutcome, saveNote, scheduleFollowup } from "../actions";
 
@@ -47,13 +48,21 @@ export type DialerLead = {
   pipeline_status: string;
   score: number | null;
   angle: DialerAngle | null;
+  /** Realistic annual saving + our 20% cut — the number the pitch quotes. */
+  savings: SavingsView | null;
   financial: unknown;
   contact: unknown;
 };
 
 const COMPETITOR_ANGLE_DA: Record<string, string> = {
-  fomo: "FOMO — konkurrenter er mere synlige",
-  first_mover: "First mover — vær først/bedst lokalt",
+  fomo: "FOMO — andre i branchen automatiserer allerede",
+  first_mover: "First mover — først lokalt til at køre driften sådan",
+};
+
+const CAPPED_BY_DA: Record<string, string> = {
+  gross_profit: "skåret ned efter bruttofortjenesten",
+  headcount: "skåret ned efter antal ansatte",
+  ceiling: "loft sat — større end vores typiske kunde",
 };
 
 // Outcome buttons — each moves the pipeline forward and advances to the next lead.
@@ -107,6 +116,38 @@ function Objections({ items }: { items: AngleObjection[] }) {
   );
 }
 
+function SavingsPanel({ savings }: { savings: SavingsView }) {
+  return (
+    <section className="rounded-xl border border-teal-fg/25 bg-teal-bg p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-teal-fg">
+          Realistisk besparelse — estimat
+        </h2>
+        <span className="text-xs text-teal-fg/80">
+          {savings.rate !== null && `${Math.round(savings.rate * 100)}% af omsætning`}
+          {savings.confidence && ` · ${savings.confidence} sikkerhed`}
+          {savings.cappedBy && ` · ${CAPPED_BY_DA[savings.cappedBy] ?? savings.cappedBy}`}
+        </span>
+      </div>
+      <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">
+        {formatDKK(savings.annualLow)} – {formatDKK(savings.annualHigh)}
+        <span className="ml-1 text-sm font-normal text-muted">om året</span>
+      </p>
+      <p className="mt-1 text-sm text-muted">
+        Dit honorar (20% af det sparede):{" "}
+        <span className="font-medium text-ink">
+          {formatDKK(savings.feeLow)} – {formatDKK(savings.feeHigh)}
+        </span>{" "}
+        om året
+      </p>
+      <p className="mt-2 text-xs text-faint">
+        Estimeret ud fra branche og størrelse — ikke deres regnskab. Sig det som et
+        typisk spænd, aldrig som et løfte.
+      </p>
+    </section>
+  );
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   const empty = value === null || value === undefined || value === "";
   return (
@@ -124,6 +165,8 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   const [note, setNote] = useState("");
   const [date, setDate] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Non-blocking: the outcome was logged, but a side effect (PM sync) failed.
+  const [warning, setWarning] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const total = queue.length;
@@ -132,6 +175,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   const go = useCallback(
     (dir: 1 | -1) => {
       setError(null);
+      setWarning(null);
       setNote("");
       setDate("");
       setIndex((i) => Math.min(total - 1, Math.max(0, i + dir)));
@@ -140,12 +184,16 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   );
 
   const run = useCallback(
-    (action: () => Promise<{ error?: string }>, onOk?: () => void) => {
+    (action: () => Promise<{ error?: string; warning?: string }>, onOk?: () => void) => {
       setError(null);
+      setWarning(null);
       startTransition(async () => {
         const res = await action();
         if (res.error) setError(res.error);
-        else onOk?.();
+        else {
+          if (res.warning) setWarning(res.warning);
+          onOk?.();
+        }
       });
     },
     [],
@@ -220,7 +268,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   const voicemail = buildVoicemail({
     firstName: voicemailFirstName(decisionMakers),
     companyName: lead.company_name,
-    websiteNeed: lead.website_need,
+    branchekode: lead.branchekode,
   });
   const angle = lead.angle;
   const branche = lead.branche_text ?? groupLabel(lead.branchekode) ?? "—";
@@ -302,6 +350,8 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
             {employeesLabel(lead.employees_band, lead.employees_exact)} ansatte
           </p>
 
+          {lead.savings && <SavingsPanel savings={lead.savings} />}
+
           {angle && (
             <section className="overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100/50 p-5 shadow-[var(--shadow-card)]">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -336,7 +386,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
               )}
               <Objections items={angle.objections} />
               <AnglePart label="Resumé" text={angle.summary_da} />
-              <AnglePart label="Svagheder" text={angle.weaknesses_da} />
+              <AnglePart label="Hvor tiden og pengene går (intern)" text={angle.weaknesses_da} />
             </section>
           )}
 
@@ -540,6 +590,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
               </div>
 
               {error && <p className="mt-3 text-sm text-rose-fg">{error}</p>}
+              {warning && <p className="mt-3 text-sm text-amber-fg">{warning}</p>}
             </section>
 
             <Link

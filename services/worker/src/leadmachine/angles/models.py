@@ -14,13 +14,18 @@ class LeadForAngle:
 
     ``website`` / ``financial`` / ``social`` are the matching ``lead_enrichment``
     jsonb payloads; ``score_breakdown`` is ``lead_scores.breakdown`` (the
-    explainable "why it's a good lead" the prompt grounds itself in).
+    explainable "why it's a good lead" the prompt grounds itself in). Under the
+    savings offer ``financial`` carries the most weight — it is what the DKK
+    estimate is derived from — and ``website`` is only a digital-maturity read.
     """
 
     lead_id: str
     company_name: str
     city: str | None = None
     branche_text: str | None = None
+    # DB07/DB25 industry code — drives the savings rate and the sector-typical
+    # time-sink hypotheses in the brief (see financial.savings).
+    branchekode: str | None = None
     website_need: str = "unknown"
     employees: int | None = None
     score: int | None = None
@@ -35,7 +40,12 @@ class LeadForAngle:
 
 @dataclass(slots=True)
 class Angle:
-    """A generated Danish sales angle, ready to upsert into ``lead_angles``."""
+    """A generated Danish sales angle, ready to upsert into ``lead_angles``.
+
+    ``weaknesses_da`` keeps its column name but not its old meaning: under the
+    savings offer it holds the caller's private notes on where time and money
+    leak, plus the DKK math — not a critique of their website.
+    """
 
     summary_da: str
     weaknesses_da: str

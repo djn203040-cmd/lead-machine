@@ -16,7 +16,9 @@ from typing import Any, Iterable, Protocol
 from .models import Angle, LeadForAngle
 from .prompt import build_prompt
 
-# website_need values that mean the lead hasn't been qualified yet.
+# website_need values that mean the lead's site was never qualified. Under the
+# savings offer this no longer blocks a pitch — the call is about their
+# operations, not their website — so it is opt-in via ``skip_unqualified``.
 _UNQUALIFIED = frozenset({"unknown", ""})
 
 
@@ -24,7 +26,7 @@ _UNQUALIFIED = frozenset({"unknown", ""})
 class AngleStats:
     seen: int = 0
     generated: int = 0
-    skipped: int = 0  # not yet qualified — nothing concrete to pitch
+    skipped: int = 0  # website never qualified, and the caller asked to skip those
     errors: int = 0
 
     def as_dict(self) -> dict[str, int]:
@@ -51,9 +53,14 @@ def run_angles(
     client: AnglesClientProtocol,
     writer: AngleWriter,
     *,
-    skip_unqualified: bool = True,
+    skip_unqualified: bool = False,
 ) -> AngleStats:
-    """Generate and persist an angle for each lead."""
+    """Generate and persist an angle for each lead.
+
+    ``skip_unqualified`` drops leads whose website was never classified. It
+    defaults off: the pitch is about the money we can save them, so an
+    unqualified website is no longer a reason to stay silent.
+    """
     stats = AngleStats()
     for lead in leads:
         stats.seen += 1

@@ -4,7 +4,9 @@ Class B annual reports legally omit revenue (only *bruttofortjeneste* is
 disclosed), so we estimate it. Preference order:
 
 1. **actual** — ``fsa:Revenue`` was disclosed (class C+ or voluntary).
-2. **gross_margin_backout** — ``revenue ≈ gross_profit / sector_gross_margin``.
+2. **gross_margin_backout** — ``revenue ≈ gross_profit / sector_gross_margin``,
+   *unless* the result is implausible next to the company's headcount (a stub or
+   part-period filing), in which case we fall through to (3).
 3. **per_employee** — ``revenue ≈ employees × sector_revenue_per_employee``.
 
 Sector benchmarks are rough Danish-SMB heuristics keyed to the branchekode
@@ -15,6 +17,7 @@ catalog groups; tune against real outcomes. Revenue is never a hard gate
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ..cvr.branchekoder import by_code, normalize_code
 from .models import Financials, RevenueEstimate
@@ -46,6 +49,11 @@ BENCHMARKS: dict[str, Benchmark] = {
     "business_services": Benchmark("business_services", 900_000, 0.70),
 }
 DEFAULT_BENCHMARK = Benchmark("default", 1_000_000, 0.50)
+
+# A gross-profit backout below this share of what the headcount implies is not
+# a small company — it is a stub or part-period filing. Six people do not run a
+# café on 470k a year. Below the floor we trust the headcount instead.
+IMPLAUSIBLE_BACKOUT_SHARE = 0.5
 
 # DB25 2-digit division -> catalog group, for codes outside our curated catalog.
 _PREFIX_GROUP: dict[str, str] = {
@@ -119,28 +127,39 @@ def estimate_revenue(
 
     if financials.gross_profit and financials.gross_profit > 0 and bench.gross_margin > 0:
         value = financials.gross_profit / bench.gross_margin
-        return RevenueEstimate(
-            value=round(value),
-            method="gross_margin_backout",
-            confidence="medium",
-            inputs={
-                "gross_profit": financials.gross_profit,
-                "gross_margin": bench.gross_margin,
-                "group": bench.group,
-            },
+        # Sanity-check against headcount before trusting the filing.
+        floor = (
+            employees * bench.revenue_per_employee * IMPLAUSIBLE_BACKOUT_SHARE
+            if employees and employees > 0
+            else 0
         )
+        if value >= floor:
+            return RevenueEstimate(
+                value=round(value),
+                method="gross_margin_backout",
+                confidence="medium",
+                inputs={
+                    "gross_profit": financials.gross_profit,
+                    "gross_margin": bench.gross_margin,
+                    "group": bench.group,
+                },
+            )
 
     if employees and employees > 0:
         value = employees * bench.revenue_per_employee
+        inputs: dict[str, Any] = {
+            "employees": employees,
+            "revenue_per_employee": bench.revenue_per_employee,
+            "group": bench.group,
+        }
+        if financials.gross_profit and financials.gross_profit > 0:
+            # We had a filing and rejected it — record why, so the number is auditable.
+            inputs["rejected_backout"] = round(financials.gross_profit / bench.gross_margin)
         return RevenueEstimate(
             value=round(value),
             method="per_employee",
             confidence="low",
-            inputs={
-                "employees": employees,
-                "revenue_per_employee": bench.revenue_per_employee,
-                "group": bench.group,
-            },
+            inputs=inputs,
         )
 
     return None

@@ -23,7 +23,7 @@ export default function NewSearchPage() {
       <p className="mb-6 text-sm text-muted">
         Vælg en eller flere brancher og et område — søg på by, kommune eller
         region. Reklamebeskyttede og inaktive virksomheder frasorteres
-        automatisk. Nye virksomheder uden hjemmeside markeres som de bedste leads.
+        automatisk. Leads rangeres efter, hvor meget vi realistisk kan spare dem.
       </p>
 
       {!configured && (

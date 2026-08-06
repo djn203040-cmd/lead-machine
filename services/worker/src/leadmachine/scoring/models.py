@@ -1,7 +1,7 @@
 """Dataclasses for lead scoring (M4).
 
 The scorer turns the signals already attached to a lead (``leads`` columns +
-``lead_enrichment`` jsonb) into an explainable 0–100 "needs a website now"
+``lead_enrichment`` jsonb) into an explainable 0–100 "how much can we save them"
 score. Inputs only — no network — so the whole milestone is testable here.
 """
 
@@ -10,7 +10,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-SCORE_VERSION = 1  # bump when the rubric shape changes (lets the UI migrate)
+# 1 = website-need rubric (website_need/budget/presence/industry/recency).
+# 2 = savings rubric (savings/industry/tech/presence/size/recency).
+SCORE_VERSION = 2  # bump when the rubric shape changes (lets the UI migrate)
 
 
 @dataclass(slots=True)

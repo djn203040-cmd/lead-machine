@@ -2,18 +2,20 @@
 
 type BadgeMeta = { label: string; className: string };
 
-// website_need ladder. For a website agency, "no/dead/parked/facebook-only/
-// not-independent" = the best leads, so those get the strong (brand) tone;
-// bad/outdated are amber, modern is muted.
+// website_need ladder. We sell systems and savings, not websites — so this is
+// no longer a need-signal but a read on **digital maturity**: a business
+// already running a real site is the easiest systems conversation (teal), one
+// with nothing online has the most manual work but is the slowest sale
+// (neutral).
 export const WEBSITE_NEED_META: Record<string, BadgeMeta> = {
-  none: { label: "Ingen hjemmeside", className: "chip-brand" },
-  dead: { label: "Dødt domæne", className: "chip-brand" },
-  parked: { label: "Parkeret domæne", className: "chip-brand" },
-  facebook_only: { label: "Kun Facebook", className: "chip-brand" },
-  not_independent: { label: "Ej selvstændig side", className: "chip-brand" },
+  none: { label: "Ingen hjemmeside", className: "chip-neutral" },
+  dead: { label: "Dødt domæne", className: "chip-neutral" },
+  parked: { label: "Parkeret domæne", className: "chip-neutral" },
+  facebook_only: { label: "Kun Facebook", className: "chip-amber" },
+  not_independent: { label: "Ej selvstændig side", className: "chip-amber" },
   bad: { label: "Dårlig hjemmeside", className: "chip-amber" },
   outdated: { label: "Forældet", className: "chip-amber" },
-  modern: { label: "Moderne", className: "chip-neutral" },
+  modern: { label: "Moderne", className: "chip-teal" },
   unknown: { label: "Ikke vurderet", className: "chip-neutral" },
 };
 

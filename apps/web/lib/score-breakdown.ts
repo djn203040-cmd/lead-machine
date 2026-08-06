@@ -15,21 +15,31 @@ export type ScoreBreakdown = {
   factors: Record<string, FactorScore>;
 };
 
-// Factor keys (and display order) emitted by the rubric.
+// Factor keys (and display order) emitted by the rubric. Savings rubric (v2)
+// first, then the website rubric's (v1) keys so older breakdowns still render
+// until the book is rescored.
 export const FACTOR_ORDER = [
+  "savings",
+  "industry",
+  "tech",
+  "presence",
+  "size",
+  "recency",
+  // --- legacy (score breakdown version 1) ---
   "website_need",
   "budget",
-  "presence",
-  "industry",
-  "recency",
 ] as const;
 
 export const FACTOR_LABELS_DA: Record<string, string> = {
-  website_need: "Hjemmesidebehov",
-  budget: "Budget",
-  presence: "Online tilstedeværelse",
+  savings: "Besparelsespotentiale",
   industry: "Brancheegnethed",
+  tech: "Digital modenhed",
+  presence: "Online tilstedeværelse",
+  size: "Størrelse/kompleksitet",
   recency: "Aktualitet",
+  // legacy v1 factors
+  website_need: "Hjemmesidebehov (gl. rubrik)",
+  budget: "Budget (gl. rubrik)",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

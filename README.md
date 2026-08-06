@@ -1,10 +1,13 @@
 # Lead Machine
 
-A lead generation → qualification → enrichment engine for a Danish web-design
-agency selling **$1–2k websites**. It finds Danish local businesses, qualifies
-them by **website-readiness** (no / dead / parked / Facebook-only / bad site =
-best lead), enriches them with firmographics + financials, scores them 0–100,
-and surfaces pitch-ready leads with Danish AI sales angles.
+A lead generation → qualification → enrichment engine for a Danish operations
+partner selling **time and money back on commission**: we follow a business,
+build the systems that remove its manual work, and take **20% of what we
+actually save it**. The engine finds Danish local businesses, enriches them with
+firmographics + financials, estimates the **realistic annual saving in DKK**
+(~10% of revenue, sector-adjusted and capped by gross profit), scores them
+0–100 on the size of that prize, and surfaces pitch-ready leads with Danish AI
+sales angles. Website signals survive only as a read on digital maturity.
 
 See **[`PLAN.md`](./PLAN.md)** for the full plan and
 **[`RESEARCH-lead-qualification-2026.md`](./RESEARCH-lead-qualification-2026.md)**
