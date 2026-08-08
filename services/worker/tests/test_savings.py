@@ -10,6 +10,7 @@ from leadmachine.financial.savings import (
     GROSS_PROFIT_CAP,
     MAX_ANNUAL,
     MAX_PER_EMPLOYEE,
+    OPERATING_SAVINGS_RATE,
     estimate_savings,
     group_for,
     levers_for,
@@ -44,7 +45,61 @@ def test_goods_heavy_sectors_get_a_lower_rate_than_service_sectors() -> None:
     assert savings_rate("452000") < 0.10  # auto — revenue is largely parts
 
 
-# --- the core estimate -----------------------------------------------------
+# --- their own accounts come first -----------------------------------------
+def test_filed_accounts_beat_the_benchmark() -> None:
+    """Revenue is guesswork; bruttofortjeneste and årets resultat are filed fact.
+
+    What they spend below the gross line is the only pool systems can save from,
+    so that — not an estimated turnover — is what the claim rests on.
+    """
+    est = estimate_savings(
+        _fin(17_000_000, gross_profit=7_667_935, profit_loss=2_611_640), "433900", employees=8
+    )
+    assert est is not None
+    assert est.basis == "accounts"
+    assert est.from_accounts
+    assert est.pool == round(7_667_935 - 2_611_640)  # the operating cost base
+    assert est.annual_high == 510_000  # 10% of the cost base
+    assert est.confidence == "høj"
+    assert est.rate == OPERATING_SAVINGS_RATE
+
+
+def test_a_loss_makes_the_cost_base_bigger_than_the_gross_profit() -> None:
+    """They spent more than they grossed — that overspend is real cost base."""
+    est = estimate_savings(_fin(9_400_000, gross_profit=7_549_844, profit_loss=-816_321), "962100")
+    assert est is not None
+    assert est.pool > 7_549_844
+    assert est.profit_loss == -816_321
+
+
+def test_gross_profit_alone_is_used_as_an_upper_bound() -> None:
+    est = estimate_savings(_fin(5_000_000, gross_profit=2_000_000), "433900")
+    assert est is not None
+    assert est.basis == "accounts"
+    assert est.pool == 2_000_000
+    # Less certain than a full filing: we know the ceiling, not the cost base.
+    assert est.confidence == "middel"
+
+
+def test_nothing_filed_falls_back_to_the_sector_benchmark() -> None:
+    est = estimate_savings(_fin(8_750_000, "low"), "862100", employees=8)
+    assert est is not None
+    assert est.basis == "benchmark"
+    assert not est.from_accounts
+    assert est.revenue == 8_750_000
+    assert est.confidence == "lav"
+
+
+def test_profit_exceeding_gross_profit_falls_back() -> None:
+    """A holding-shaped filing (profit from elsewhere) leaves no usable cost base."""
+    est = estimate_savings(
+        _fin(2_000_000, gross_profit=100_000, profit_loss=3_900_000), "433900"
+    )
+    assert est is not None
+    assert est.basis == "benchmark"
+
+
+# --- the benchmark fallback ------------------------------------------------
 def test_ten_percent_of_revenue_is_the_baseline() -> None:
     # trades sits on the 10% default; 2M revenue → 200k baseline, 120k low end.
     est = estimate_savings(_fin(2_000_000), "433900")
@@ -78,35 +133,31 @@ def test_no_revenue_signal_means_no_number() -> None:
     assert estimate_savings({"revenue_estimate": {"value": "lots"}}, "962100") is None
 
 
-def test_gross_profit_caps_the_claim() -> None:
-    # 5M revenue at 10% would be 500k, but they only clear 600k gross.
-    est = estimate_savings(_fin(5_000_000, gross_profit=600_000), "433900")
+def test_gross_profit_caps_a_benchmark_claim() -> None:
+    """A sector guess must not out-claim the margin they actually keep.
+
+    Only bites on the benchmark path — here the filing leaves no usable cost
+    base, so we fall back to revenue but still bound it by the gross profit.
+    """
+    est = estimate_savings(
+        _fin(5_000_000, gross_profit=600_000, profit_loss=800_000), "433900"
+    )
     assert est is not None
+    assert est.basis == "benchmark"
     assert est.capped_by == "gross_profit"
     assert est.annual_high <= 600_000 * GROSS_PROFIT_CAP + 10_000  # + rounding
-    assert est.annual_high < 500_000
-
-
-def test_generous_gross_profit_does_not_cap() -> None:
-    est = estimate_savings(_fin(2_000_000, gross_profit=1_500_000), "433900")
-    assert est is not None
-    assert est.capped_by is None
 
 
 def test_headcount_caps_what_we_can_claim_to_free_up() -> None:
-    """You can't save more work than there are people doing it.
-
-    17M revenue at 10% would be 1.7M/year — not a sayable number about eight
-    people, so the claim is trimmed to what the headcount can plausibly carry.
-    """
-    est = estimate_savings(_fin(17_000_000, gross_profit=7_600_000), "433900", employees=8)
+    """You can't save more work than there are people doing it."""
+    est = estimate_savings(_fin(40_000_000, "low"), "433900", employees=4)
     assert est is not None
     assert est.capped_by == "headcount"
-    assert est.annual_high == 8 * MAX_PER_EMPLOYEE
+    assert est.annual_high == 4 * MAX_PER_EMPLOYEE
 
 
 def test_headcount_cap_does_not_bite_a_well_staffed_firm() -> None:
-    est = estimate_savings(_fin(2_000_000), "433900", employees=20)
+    est = estimate_savings(_fin(2_000_000), "433900", employees=20)  # noqa: E501
     assert est is not None
     assert est.capped_by is None
     assert est.annual_high == 200_000
@@ -141,11 +192,13 @@ def test_numbers_are_rounded_to_speakable_amounts() -> None:
 
 
 def test_as_dict_round_trips_the_math() -> None:
-    est = estimate_savings(_fin(2_000_000), "433900")
+    est = estimate_savings(_fin(2_000_000, gross_profit=900_000, profit_loss=100_000), "433900")
     assert est is not None
     out = est.as_dict()
     assert out["annual_high"] == est.annual_high
-    assert out["revenue"] == 2_000_000
+    assert out["basis"] == "accounts"
+    assert out["pool"] == 800_000
+    assert out["gross_profit"] == 900_000
     assert out["capped_by"] is None
 
 

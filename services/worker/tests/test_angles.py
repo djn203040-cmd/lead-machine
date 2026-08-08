@@ -45,6 +45,38 @@ def test_build_user_prompt_includes_core_facts() -> None:
     assert "87" in prompt
 
 
+def test_brief_quotes_their_own_accounts_when_they_filed() -> None:
+    """Filed figures are fact and the caller may say them out loud."""
+    lead = _lead(
+        branchekode="433900",
+        employees=8,
+        financial={
+            "gross_profit": 7_667_935,
+            "profit_loss": 2_611_640,
+            "revenue_estimate": {"value": 17_039_856, "confidence": "medium"},
+        },
+    )
+    prompt = build_user_prompt(lead)
+    assert "GRUNDLAG: deres eget regnskab" in prompt
+    assert "du må citere tallene" in prompt
+    assert "7.667.935" in prompt  # bruttofortjeneste, verbatim
+    assert "5.056.295" in prompt  # the operating cost base they can save from
+    assert "510.000" in prompt  # 10% of it
+    assert "brancheestimat" not in prompt
+
+
+def test_brief_marks_a_benchmark_number_as_not_theirs() -> None:
+    lead = _lead(
+        branchekode="862100",
+        employees=8,
+        financial={"revenue_estimate": {"value": 8_750_000, "confidence": "low"}},
+    )
+    prompt = build_user_prompt(lead)
+    assert "GRUNDLAG: brancheestimat" in prompt
+    assert "IKKE deres regnskab" in prompt
+    assert "aldrig som deres tal" in prompt
+
+
 def test_build_user_prompt_leads_with_the_savings_math() -> None:
     lead = _lead(
         branchekode="962100",  # frisør → beauty_wellness, 12%
@@ -111,7 +143,7 @@ def test_build_user_prompt_includes_revenue_social_and_factors() -> None:
     )
     prompt = build_user_prompt(lead)
     assert "1.500.000 DKK" in prompt
-    assert "medium" in prompt
+    assert "brancheestimat" in prompt  # nothing filed → flagged as an outside guess
     assert "Facebook-side" in prompt
     assert "Meta Pixel" in prompt
     assert "Besparelsespotentiale 34/40" in prompt

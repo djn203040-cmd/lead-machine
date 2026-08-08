@@ -28,12 +28,12 @@ from .conftest import FakeScoreWriter, FakeSupabase
 TODAY = date(2026, 6, 22)
 W = Weights()
 
-# A hairdresser (beauty_wellness, 12% savings rate) big enough to land in the
-# 250k–1M "prime" savings band, with margin to spare so the gross-profit cap
-# never bites.
+# Filed accounts that put the operating cost base (gross profit − profit) at
+# 4.5M, i.e. a ~450k/year saving — squarely in the 250k–1M "prime" band.
 PRIME_FINANCIAL = {
     "revenue_estimate": {"value": 5_000_000, "confidence": "medium"},
-    "gross_profit": 3_000_000,
+    "gross_profit": 5_000_000,
+    "profit_loss": 500_000,
 }
 
 
@@ -64,7 +64,8 @@ def test_every_seeded_criterion_maps_to_a_real_weight_field() -> None:
 
 # --- savings factor (40) ---------------------------------------------------
 def test_savings_scales_with_the_size_of_the_prize() -> None:
-    # 962100 = frisør (beauty_wellness, 12%). Bands walk up then back down.
+    # Nothing filed → 962100 = frisør (beauty_wellness, 12% of revenue).
+    # Bands walk up then back down.
     tiny = score_savings(_financial(150_000), "962100", W)
     mid = score_savings(_financial(900_000), "962100", W)
     prime = score_savings(_financial(5_000_000), "962100", W)
@@ -90,15 +91,26 @@ def test_savings_without_revenue_is_unknown_not_zero() -> None:
     assert fs.detail == {"band": "unknown"}
 
 
-def test_savings_is_capped_by_gross_profit() -> None:
-    lean = score_savings(_financial(5_000_000, gross_profit=300_000), "962100", W)
-    fat = score_savings(_financial(5_000_000, gross_profit=3_000_000), "962100", W)
+def test_savings_prefers_filed_accounts_over_the_benchmark() -> None:
+    """Same estimated revenue, but one of them actually filed — trust the filing."""
+    filed = score_savings(
+        _financial(5_000_000, gross_profit=4_000_000, profit_loss=200_000), "962100", W
+    )
+    guessed = score_savings(_financial(5_000_000), "962100", W)
+    assert filed.detail["basis"] == "accounts"
+    assert guessed.detail["basis"] == "benchmark"
+    assert filed.detail["confidence"] == "høj"
+
+
+def test_a_thin_cost_base_scores_below_a_fat_one() -> None:
+    lean = score_savings(_financial(5_000_000, gross_profit=300_000, profit_loss=50_000), "962100", W)
+    fat = score_savings(_financial(5_000_000, gross_profit=4_000_000, profit_loss=200_000), "962100", W)
     assert lean.points < fat.points
-    assert lean.detail["capped_by"] == "gross_profit"
 
 
-def test_savings_rate_is_sector_adjusted() -> None:
-    # Same revenue: a retailer's turnover is mostly goods, a clinic's is time.
+def test_benchmark_rate_is_sector_adjusted() -> None:
+    # Nothing filed, same revenue: a retailer's turnover is mostly goods, a
+    # clinic's is time.
     retail = score_savings(_financial(3_000_000), "477110", W)
     clinic = score_savings(_financial(3_000_000), "862100", W)
     assert retail.detail["rate"] < clinic.detail["rate"]

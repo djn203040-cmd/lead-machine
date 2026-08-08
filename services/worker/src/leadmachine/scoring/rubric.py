@@ -216,6 +216,8 @@ def score_savings(
     points, band = _savings_points(midpoint, w)
     detail: dict[str, Any] = {
         "band": band,
+        "basis": savings.basis,  # 'accounts' (their filing) | 'benchmark' (a guess)
+        "pool": savings.pool,  # operating cost base, or estimated revenue
         "annual_low": savings.annual_low,
         "annual_high": savings.annual_high,
         "fee_low": savings.fee_low,

@@ -65,13 +65,29 @@ its manual work, and charge **20% of what we actually save it**. Nothing up
 front; nothing saved, nothing paid. So the best lead is the one where the most
 money can realistically be saved.
 
-**The number (`financial/savings.py`):** realistic annual saving ≈ **10% of
-revenue**, sector-adjusted down where revenue is mostly pass-through cost
-(retail 6%, auto/transport 7%) and up for time-and-admin sectors (12%), then
-capped by **30% of gross profit** (you can only save out of the margin they
-keep) and by **150k DKK per employee** (only so many hands to free up). Quoted
-as a conservative → baseline **band**, never a promise, with the confidence
-inherited from the revenue estimate.
+**The number (`financial/savings.py`)** — their own accounts first, a benchmark
+only as fallback:
+
+1. **accounts** (156 of 292 leads) — `saving ≈ 10% × (bruttofortjeneste − årets
+   resultat)`. That difference is their **operating cost base**: the wages,
+   admin and overhead below the gross line, which is the only pool systems can
+   save from. Filed and public, so the caller may quote it back to them.
+2. **benchmark** (81 leads) — only when nothing usable was filed:
+   `saving ≈ 10% of estimated revenue`, sector-adjusted down where revenue is
+   mostly pass-through cost (retail 6%, auto/transport 7%) and up for
+   time-and-admin sectors (12%), then capped by **30% of gross profit**. Flagged
+   in the brief as *not* their figure.
+3. **no figure** (55 leads) — nothing filed and no headcount: the caller gets no
+   DKK number and pitches on hours instead.
+
+**Why revenue isn't the anchor:** under årsregnskabsloven a regnskabsklasse B
+company may publish *bruttofortjeneste* instead of *nettoomsætning*, so revenue
+is not public for almost anyone — 2 of 237 leads disclose it. Anything
+revenue-based is therefore backed out of a sector gross margin, i.e. the least
+reliable number in the chain.
+
+Both paths are capped by **150k DKK per employee** (only so many hands to free
+up) and quoted as a conservative → baseline **band**, never a promise.
 
 **0–100, hard-gated.** Weights: **Savings potential 40 / Industry fit 20 /
 Digital maturity 15 / Online presence 10 / Size 8 / Recency 7.**

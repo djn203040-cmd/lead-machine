@@ -15,7 +15,15 @@ export type SavingsView = {
   annualHigh: number;
   feeLow: number;
   feeHigh: number;
-  /** Share of revenue used, e.g. 0.12. */
+  /**
+   * "accounts" = derived from their own filed bruttofortjeneste/resultat, which
+   * the caller may quote back to them. "benchmark" = nothing usable was filed,
+   * so it's an outside guess from sector and size.
+   */
+  basis: "accounts" | "benchmark";
+  /** What the rate was applied to: operating cost base, or estimated revenue. */
+  pool: number | null;
+  /** Share of the pool used, e.g. 0.10. */
   rate: number | null;
   /** 'høj' | 'middel' | 'lav' — inherited from the revenue estimate. */
   confidence: string | null;
@@ -42,6 +50,9 @@ export function savingsFromBreakdown(json: unknown): SavingsView | null {
     annualHigh,
     feeLow: num(detail.fee_low) ?? Math.round(annualLow * FEE_SHARE),
     feeHigh: num(detail.fee_high) ?? Math.round(annualHigh * FEE_SHARE),
+    // Breakdowns written before the accounts-first basis have no `basis` key.
+    basis: detail.basis === "accounts" ? "accounts" : "benchmark",
+    pool: num(detail.pool),
     rate: num(detail.rate),
     confidence: typeof detail.confidence === "string" ? detail.confidence : null,
     cappedBy: typeof detail.capped_by === "string" ? detail.capped_by : null,

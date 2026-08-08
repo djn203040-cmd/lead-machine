@@ -125,6 +125,21 @@ export function formatDKK(value: number | null | undefined): string {
   return DKK.format(value);
 }
 
+/**
+ * Format an *estimated* amount so it doesn't read as a filed figure. Revenue is
+ * not public for regnskabsklasse B companies, so "17.039.856 kr." would imply a
+ * precision we don't have — "ca. 17,0 mio. kr." says what it is.
+ */
+export function formatDKKEstimate(value: number | null | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) return "—";
+  if (Math.abs(value) >= 1_000_000) {
+    return `ca. ${(value / 1_000_000).toLocaleString("da-DK", {
+      maximumFractionDigits: 1,
+    })} mio. kr.`;
+  }
+  return `ca. ${DKK.format(Math.round(value / 1_000) * 1_000)}`;
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);

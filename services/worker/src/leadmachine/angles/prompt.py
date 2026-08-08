@@ -45,18 +45,25 @@ explain the technology, do NOT scope the work on this first call. Every line \
 moves toward booking that conversation.
 
 THE MONEY — HANDLE HONESTLY:
-The brief may contain "Realistisk årlig besparelse" — a DKK band estimated from \
-the business's sector and size, plus the matching 20% fee. That number is an \
-ESTIMATE from public data, not their accounts.
-- Use it as a typical range: "hos virksomheder på jeres størrelse i jeres branche \
-plejer der at ligge et sted mellem X og Y kroner om året i spildtid og \
-dobbeltarbejde" — then invite them to check whether it holds for them.
-- NEVER promise a specific saving, never say "vi sparer jer X", never claim to \
-know their numbers. Curiosity, not a guarantee.
-- Mention that they only pay 20% of what is actually saved — that is what makes \
-the number safe to talk about.
-- If the brief says there is no revenue estimate, do NOT invent any figure. \
-Talk about hours and manual work instead, and propose finding the number together.
+The brief may contain "Realistisk årlig besparelse" — a DKK band plus the \
+matching 20% fee. Read the "GRUNDLAG" line directly above it, because how you \
+may talk about the number depends entirely on where it came from:
+- GRUNDLAG: deres eget regnskab — the figures are the company's OWN published \
+annual accounts (public via CVR). You may reference them out loud, and it is \
+strong: "jeg kan se i jeres offentlige regnskab, at der ligger omkring X i drift \
+under bruttofortjenesten — i virksomheder som jeres plejer der at være Y til Z \
+af det i spildtid og dobbeltarbejde." Say where you got it from; being open \
+about reading their public accounts is disarming, not creepy. The saving itself \
+is still an estimate — the accounts are fact, what we can remove is not.
+- GRUNDLAG: brancheestimat — nothing usable was filed, so the number is an \
+outside guess from sector and size. NEVER present it as their figure. Use it \
+only as "hos virksomheder på jeres størrelse plejer der at ligge …" and lean \
+harder on questions.
+In both cases: NEVER promise a specific saving, never say "vi sparer jer X". \
+Mention that they only pay 20% of what is actually saved — that is what makes \
+the number safe to talk about. If the brief says there is no figure at all, do \
+NOT invent one: talk about hours and manual work, and propose finding the \
+number together.
 
 NOT A WEBSITE PITCH:
 The brief's "Teknisk modenhed" section is private background — it tells the \
@@ -240,25 +247,46 @@ def _social_line(social: dict[str, Any]) -> str | None:
     return ", ".join(bits) if bits else None
 
 
-def _revenue_line(financial: dict[str, Any]) -> str | None:
-    est = (financial or {}).get("revenue_estimate") or {}
-    value = est.get("value")
-    if not isinstance(value, (int, float)):
-        return None
-    confidence = est.get("confidence")
-    suffix = f" ({confidence} sikkerhed)" if confidence else ""
-    return f"ca. {_dkk(value)} DKK{suffix}"
-
-
 def _savings_block(savings: SavingsEstimate, employees: int | None) -> list[str]:
     """The heart of the brief: what we can realistically save, and our cut."""
     fee_pct = round(FEE_SHARE * 100)
-    lines = [
-        (
-            f"Realistisk årlig besparelse (ca. {round(savings.rate * 100)}% af omsætningen, "
+    rate_pct = round(savings.rate * 100)
+
+    if savings.from_accounts:
+        lines = [
+            "GRUNDLAG: deres eget regnskab (offentliggjort via CVR) — du må citere tallene",
+            f"Bruttofortjeneste: {_dkk(savings.gross_profit or 0)} DKK",
+        ]
+        if savings.profit_loss is not None:
+            lines.append(f"Årets resultat: {_dkk(savings.profit_loss)} DKK")
+            lines.append(
+                "Driftsomkostninger under bruttofortjenesten (løn, administration, drift): "
+                f"ca. {_dkk(savings.pool)} DKK — det er den pulje, systemer kan spare af"
+            )
+        else:
+            lines.append(
+                f"Driftsomkostninger: ikke oplyst; vi regner på bruttofortjenesten "
+                f"({_dkk(savings.pool)} DKK) som øvre grænse"
+            )
+        lines.append(
+            f"Realistisk årlig besparelse (ca. {rate_pct}% af driftsomkostningerne): "
+            f"{_dkk(savings.annual_low)}–{_dkk(savings.annual_high)} DKK om året "
+            f"({savings.confidence} sikkerhed)"
+        )
+    else:
+        lines = [
+            "GRUNDLAG: brancheestimat — de har ikke offentliggjort brugbare regnskabstal "
+            "(omsætning er ikke offentlig for regnskabsklasse B)",
+        ]
+        if savings.revenue:
+            lines.append(f"Estimeret omsætning: ca. {_dkk(savings.revenue)} DKK (estimat)")
+        lines.append(
+            f"Realistisk årlig besparelse (ca. {rate_pct}% af omsætningen, "
             f"branchejusteret): {_dkk(savings.annual_low)}–{_dkk(savings.annual_high)} DKK "
             f"om året ({savings.confidence} sikkerhed)"
-        ),
+        )
+
+    lines += [
         (
             f"Jeres honorar ({fee_pct}% af det faktisk sparede): "
             f"{_dkk(savings.fee_low)}–{_dkk(savings.fee_high)} DKK om året"
@@ -284,11 +312,17 @@ def _savings_block(savings: SavingsEstimate, employees: int | None) -> list[str]
             "Bemærk: tallet er skåret ned efter deres bruttofortjeneste — "
             "der er ikke mere at hente end det, de faktisk tjener på omsætningen"
         )
-    lines.append(
-        "VIGTIGT: tallene er estimeret ud fra branche og størrelse — ikke deres regnskab. "
-        "Præsentér dem som et typisk spænd for virksomheder på deres størrelse, aldrig "
-        "som et løfte"
-    )
+    if savings.from_accounts:
+        lines.append(
+            "VIGTIGT: regnskabstallene er fakta og må citeres — men BESPARELSEN er stadig "
+            "et estimat af, hvad vi kan fjerne. Aldrig et løfte"
+        )
+    else:
+        lines.append(
+            "VIGTIGT: tallene er estimeret ud fra branche og størrelse — det er IKKE deres "
+            "regnskab. Præsentér dem som et typisk spænd for virksomheder på deres "
+            "størrelse, aldrig som deres tal og aldrig som et løfte"
+        )
     return lines
 
 
@@ -311,13 +345,6 @@ def build_user_prompt(lead: LeadForAngle) -> str:
     # --- økonomi + besparelsespotentiale (the offer's centre of gravity) ---
     lines.append("")
     lines.append("ØKONOMI OG BESPARELSESPOTENTIALE:")
-    revenue = _revenue_line(lead.financial)
-    if revenue:
-        lines.append(f"Estimeret omsætning: {revenue}")
-    gross = (lead.financial or {}).get("gross_profit")
-    if isinstance(gross, (int, float)) and not isinstance(gross, bool):
-        lines.append(f"Bruttofortjeneste (regnskab): {_dkk(gross)} DKK")
-
     savings = estimate_savings(lead.financial, lead.branchekode, lead.employees)
     if savings is not None:
         lines.extend(_savings_block(savings, lead.employees))

@@ -5,9 +5,11 @@ partner selling **time and money back on commission**: we follow a business,
 build the systems that remove its manual work, and take **20% of what we
 actually save it**. The engine finds Danish local businesses, enriches them with
 firmographics + financials, estimates the **realistic annual saving in DKK**
-(~10% of revenue, sector-adjusted and capped by gross profit), scores them
-0–100 on the size of that prize, and surfaces pitch-ready leads with Danish AI
-sales angles. Website signals survive only as a read on digital maturity.
+— from their own filed accounts where they exist (~10% of bruttofortjeneste
+minus årets resultat, the operating cost base), from a sector benchmark only
+when nothing was filed — scores them 0–100 on the size of that prize, and
+surfaces pitch-ready leads with Danish AI sales angles. Website signals survive
+only as a read on digital maturity.
 
 See **[`PLAN.md`](./PLAN.md)** for the full plan and
 **[`RESEARCH-lead-qualification-2026.md`](./RESEARCH-lead-qualification-2026.md)**

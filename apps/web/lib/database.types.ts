@@ -284,6 +284,8 @@ export type Database = {
           phone: string[]
           phone_type: string | null
           pipeline_status: string
+          pm_lead_id: string | null
+          pm_synced_at: string | null
           postal_code: string | null
           reklamebeskyttet: boolean
           robinson_screened_at: string | null
@@ -320,6 +322,8 @@ export type Database = {
           kommune?: string | null
           phone?: string[]
           pipeline_status?: string
+          pm_lead_id?: string | null
+          pm_synced_at?: string | null
           postal_code?: string | null
           reklamebeskyttet?: boolean
           robinson_screened_at?: string | null
@@ -356,6 +360,8 @@ export type Database = {
           kommune?: string | null
           phone?: string[]
           pipeline_status?: string
+          pm_lead_id?: string | null
+          pm_synced_at?: string | null
           postal_code?: string | null
           reklamebeskyttet?: boolean
           robinson_screened_at?: string | null

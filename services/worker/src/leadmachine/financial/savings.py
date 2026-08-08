@@ -5,12 +5,21 @@ systems that remove its manual work, and take **20% of what we actually save
 them**. So the number that matters on a cold call is no longer "what does a
 website cost" but **"hvor meget kan vi realistisk spare jer om året?"**.
 
-The rule of thumb is **~10% of revenue** (the operator's own baseline), but
-applied blindly that is nonsense: a car workshop's revenue is mostly parts and a
-retailer's is mostly goods — you cannot systematise away someone else's invoice.
-So the rate is sector-adjusted downward where revenue is largely pass-through
-cost, and the whole estimate is capped against *bruttofortjeneste* when we know
-it (you can only save out of the margin the business actually keeps).
+**We prefer their own filed accounts over any benchmark.** Under
+årsregnskabsloven a regnskabsklasse B company — nearly every Danish SMB — may
+publish *bruttofortjeneste* instead of *nettoomsætning*, so revenue is usually
+not public (2 of 237 leads in the book disclose it) and has to be backed out of
+a sector gross margin. But what they *do* file is exactly what we need:
+bruttofortjeneste minus årets resultat is their **operating cost base** — the
+wages, admin and overhead below the gross line, which is the only pool systems
+can actually save from. So:
+
+1. **accounts** — ``saving ≈ 10% × (gross_profit − profit_loss)``. Their numbers,
+   quotable back to them on the call.
+2. **benchmark** — only when nothing is filed: ``saving ≈ 10% of estimated
+   revenue``, sector-adjusted downward where revenue is largely pass-through
+   cost (a workshop's revenue is mostly parts; you cannot systematise away
+   someone else's invoice) and capped against *bruttofortjeneste* if we have it.
 
 Everything here is a defensible *estimate*, never a promise: the output is a
 **band** (conservative → baseline) plus the confidence inherited from the
@@ -29,10 +38,15 @@ from .estimate import benchmark_for
 # Our cut of what we actually save them. They keep the remaining 80%.
 FEE_SHARE = 0.20
 
-# Share of annual revenue a small Danish business can realistically claw back
-# with better systems (admin/booking/follow-up/scheduling/waste). 10% is the
-# baseline; sectors where revenue is dominated by goods or vehicles get less,
-# service sectors that are mostly time-and-admin get a little more.
+# Share of the *operating cost base* (bruttofortjeneste − årets resultat) that
+# better systems can realistically remove. This is the preferred basis: it rests
+# on figures the business actually filed, so the caller can quote them back.
+OPERATING_SAVINGS_RATE = 0.10
+
+# Fallback only, when nothing is filed: share of annual revenue a small Danish
+# business can realistically claw back. 10% is the baseline; sectors where
+# revenue is dominated by goods or vehicles get less, service sectors that are
+# mostly time-and-admin get a little more.
 DEFAULT_RATE = 0.10
 SECTOR_RATE: dict[str, float] = {
     "food_drink": 0.10,
@@ -56,7 +70,9 @@ SECTOR_RATE: dict[str, float] = {
 # The conservative end of the band, as a share of the baseline estimate.
 LOW_BAND = 0.6
 
-# You cannot save more than a slice of the margin the business actually keeps.
+# Benchmark path only: a sector estimate must not exceed a slice of the margin
+# the business actually keeps. On the accounts path the cost base *is* reality,
+# so nothing needs bounding against it.
 GROSS_PROFIT_CAP = 0.30
 
 # Nor more than the work there are people to do. Freeing ~a quarter of one
@@ -224,9 +240,20 @@ class SavingsEstimate:
     keeps_low: int
     keeps_high: int
     rate: float
-    revenue: int
-    confidence: str  # 'høj' | 'middel' | 'lav' — inherited from the revenue estimate
+    confidence: str  # 'høj' | 'middel' | 'lav'
+    # 'accounts' = derived from their filed figures (quotable back to them);
+    # 'benchmark' = derived from an estimated revenue (nothing was filed).
+    basis: str = "benchmark"
+    # The pool the rate was applied to: operating cost base, or est. revenue.
+    pool: int = 0
+    revenue: int | None = None
+    gross_profit: int | None = None
+    profit_loss: int | None = None
     capped_by: str | None = None  # 'gross_profit' | 'headcount' | 'ceiling' | None
+
+    @property
+    def from_accounts(self) -> bool:
+        return self.basis == "accounts"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -237,10 +264,21 @@ class SavingsEstimate:
             "keeps_low": self.keeps_low,
             "keeps_high": self.keeps_high,
             "rate": self.rate,
+            "basis": self.basis,
+            "pool": self.pool,
             "revenue": self.revenue,
+            "gross_profit": self.gross_profit,
+            "profit_loss": self.profit_loss,
             "confidence": self.confidence,
             "capped_by": self.capped_by,
         }
+
+
+def _number(value: Any) -> float | None:
+    """A usable numeric value, or ``None`` (jsonb gives us whatever it gives us)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
 def estimate_savings(
@@ -250,30 +288,57 @@ def estimate_savings(
 ) -> SavingsEstimate | None:
     """Annual savings we can realistically claim, from a lead's financial payload.
 
-    ``financial`` is the ``lead_enrichment.financial`` jsonb (revenue estimate +
-    the disclosed figures); ``employees`` bounds the claim against the number of
-    people there are to free up. Returns ``None`` when there is no revenue
-    signal — in that case the caller has no honest number to quote and the
+    ``financial`` is the ``lead_enrichment.financial`` jsonb (the filed figures +
+    a revenue estimate); ``employees`` bounds the claim against the number of
+    people there are to free up. Prefers their filed accounts and only falls
+    back to a sector benchmark when nothing was filed. Returns ``None`` when
+    there is neither — the caller then has no honest number to quote, and the
     prompt asks discovery questions instead of inventing one.
     """
     fin = financial or {}
-    estimate = fin.get("revenue_estimate") or {}
-    revenue = estimate.get("value")
-    if not isinstance(revenue, (int, float)) or isinstance(revenue, bool) or revenue <= 0:
-        return None
+    gross_profit = _number(fin.get("gross_profit"))
+    profit_loss = _number(fin.get("profit_loss"))
 
-    rate = savings_rate(branchekode)
-    baseline = revenue * rate
+    baseline: float | None = None
+    basis = "benchmark"
+    rate = OPERATING_SAVINGS_RATE
+    pool = 0.0
+    confidence = "lav"
     capped_by: str | None = None
+    revenue: float | None = None
 
-    # You can only save out of the margin the business keeps, not its turnover.
-    gross_profit = fin.get("gross_profit")
-    if isinstance(gross_profit, (int, float)) and not isinstance(gross_profit, bool):
-        ceiling = gross_profit * GROSS_PROFIT_CAP
-        if 0 < ceiling < baseline:
-            baseline = ceiling
-            capped_by = "gross_profit"
+    # 1. Their own accounts. bruttofortjeneste − årets resultat is what they
+    #    spend below the gross line: wages, admin, overhead. A loss makes the
+    #    cost base *larger* than the gross profit, which is correct.
+    if gross_profit is not None and gross_profit > 0:
+        cost_base = gross_profit - profit_loss if profit_loss is not None else gross_profit
+        if cost_base > 0:
+            baseline = cost_base * OPERATING_SAVINGS_RATE
+            basis = "accounts"
+            pool = cost_base
+            # Both figures filed → we know the cost base; only the gross profit
+            # → we're using it as an upper bound on their operating costs.
+            confidence = "høj" if profit_loss is not None else "middel"
 
+    # 2. Nothing filed (or an unusable cost base): fall back to the sector rule.
+    if baseline is None:
+        estimate = fin.get("revenue_estimate") or {}
+        revenue = _number(estimate.get("value"))
+        if revenue is None or revenue <= 0:
+            return None
+        rate = savings_rate(branchekode)
+        baseline = revenue * rate
+        pool = revenue
+        confidence = _CONFIDENCE_DA.get(str(estimate.get("confidence") or ""), "lav")
+        # A benchmark must not out-claim the margin the business actually keeps.
+        if gross_profit is not None:
+            ceiling = gross_profit * GROSS_PROFIT_CAP
+            if 0 < ceiling < baseline:
+                baseline = ceiling
+                capped_by = "gross_profit"
+
+    # Caps that apply whatever the basis: only so many hands to free up, and a
+    # sanity ceiling beyond which we are not the right partner anyway.
     if employees and employees > 0:
         ceiling = employees * MAX_PER_EMPLOYEE
         if ceiling < baseline:
@@ -290,16 +355,21 @@ def estimate_savings(
         return None
     low = min(low, high)
 
-    confidence = _CONFIDENCE_DA.get(str(estimate.get("confidence") or ""), "lav")
+    fee_low = _round_dkk(low * FEE_SHARE)
+    fee_high = _round_dkk(high * FEE_SHARE)
     return SavingsEstimate(
         annual_low=low,
         annual_high=high,
-        fee_low=_round_dkk(low * FEE_SHARE),
-        fee_high=_round_dkk(high * FEE_SHARE),
-        keeps_low=low - _round_dkk(low * FEE_SHARE),
-        keeps_high=high - _round_dkk(high * FEE_SHARE),
+        fee_low=fee_low,
+        fee_high=fee_high,
+        keeps_low=low - fee_low,
+        keeps_high=high - fee_high,
         rate=rate,
-        revenue=round(revenue),
         confidence=confidence,
+        basis=basis,
+        pool=round(pool),
+        revenue=round(revenue) if revenue is not None else None,
+        gross_profit=round(gross_profit) if gross_profit is not None else None,
+        profit_loss=round(profit_loss) if profit_loss is not None else None,
         capped_by=capped_by,
     )

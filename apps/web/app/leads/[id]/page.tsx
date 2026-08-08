@@ -7,6 +7,7 @@ import {
   employeesLabel,
   formatDate,
   formatDKK,
+  formatDKKEstimate,
   websiteNeedMeta,
   websiteQualityMeta,
   websiteSourceLabel,
@@ -179,14 +180,27 @@ export default async function LeadDetailPage({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {savings && (
-            <section className="rounded-xl border border-teal-fg/25 bg-teal-bg p-4">
+            <section
+              className={`rounded-xl border p-4 ${
+                savings.basis === "accounts"
+                  ? "border-teal-fg/25 bg-teal-bg"
+                  : "border-line-strong bg-canvas"
+              }`}
+            >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-teal-fg">
-                  Realistisk besparelse — estimat
+                <h2
+                  className={`text-xs font-semibold uppercase tracking-wide ${
+                    savings.basis === "accounts" ? "text-teal-fg" : "text-muted"
+                  }`}
+                >
+                  Realistisk besparelse
                 </h2>
-                <span className="text-xs text-teal-fg/80">
-                  {savings.rate !== null && `${Math.round(savings.rate * 100)}% af omsætning`}
-                  {savings.confidence && ` · ${savings.confidence} sikkerhed`}
+                <span
+                  className={`text-xs ${
+                    savings.basis === "accounts" ? "text-teal-fg/80" : "text-faint"
+                  }`}
+                >
+                  {savings.confidence && `${savings.confidence} sikkerhed`}
                   {savings.cappedBy &&
                     ` · ${CAPPED_BY_DA[savings.cappedBy] ?? savings.cappedBy}`}
                 </span>
@@ -202,10 +216,23 @@ export default async function LeadDetailPage({
                 </span>{" "}
                 om året
               </p>
-              <p className="mt-2 text-xs text-faint">
-                Estimeret ud fra branche og størrelse — ikke deres regnskab. Sig det som et
-                typisk spænd, aldrig som et løfte.
-              </p>
+              {/* Where the number came from decides what the caller may say out loud. */}
+              {savings.basis === "accounts" ? (
+                <p className="mt-2 text-xs text-teal-fg/90">
+                  <span className="font-semibold">Fra deres eget regnskab.</span>{" "}
+                  {savings.rate !== null && `${Math.round(savings.rate * 100)}% af `}
+                  {savings.pool !== null && `${formatDKK(savings.pool)} `}i
+                  driftsomkostninger under bruttofortjenesten. Tallene er offentlige — du
+                  må citere dem. Selve besparelsen er stadig et estimat, aldrig et løfte.
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-faint">
+                  <span className="font-semibold">Brancheestimat</span> — de har ikke
+                  offentliggjort brugbare regnskabstal (omsætning er ikke offentlig for
+                  regnskabsklasse B). Sig det som et typisk spænd for deres størrelse,
+                  aldrig som deres tal.
+                </p>
+              )}
             </section>
           )}
 
@@ -397,7 +424,7 @@ export default async function LeadDetailPage({
                 {fin.revenue_estimate?.value !== undefined && (
                   <Field
                     label="Omsætning (est.)"
-                    value={`${formatDKK(fin.revenue_estimate.value)}${
+                    value={`${formatDKKEstimate(fin.revenue_estimate.value)}${
                       fin.revenue_estimate.confidence ? ` · ${fin.revenue_estimate.confidence}` : ""
                     }`}
                   />

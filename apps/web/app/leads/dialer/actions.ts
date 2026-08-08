@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { TablesInsert, TablesUpdate } from "@/lib/database.types";
+import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { isPipelineStatus } from "@/lib/leadmeta";
+import { syncOutcomeToPm } from "@/lib/pm";
 
-type ActionResult = { error?: string };
+// `warning` = outcome logged locally, but a side effect (PM sync) failed.
+type ActionResult = { error?: string; warning?: string };
 
 // supabase-js 2.108's typed client infers insert/update params as `never` with
 // our generated types (same reason the list query uses `.returns<>()`). The
@@ -24,6 +26,15 @@ export async function logOutcome(
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Fetched up front — the PM sync needs the lead's identity + existing link.
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("company_name, email, branchekode, branche_text, pm_lead_id")
+    .eq("id", leadId)
+    .single<
+      Pick<Tables<"leads">, "company_name" | "email" | "branchekode" | "branche_text" | "pm_lead_id">
+    >();
+
   const { error } = await supabase
     .from("leads")
     .update(({ pipeline_status: status } satisfies TablesUpdate<"leads">) as never)
@@ -40,9 +51,27 @@ export async function logOutcome(
     if (noteErr) return { error: noteErr.message };
   }
 
+  // Mirror the outcome into Sonorous OS (best-effort — never blocks the log).
+  let warning: string | undefined;
+  if (lead) {
+    const sync = await syncOutcomeToPm(status, lead);
+    warning = sync.warning;
+    if (sync.pmLeadId) {
+      await supabase
+        .from("leads")
+        .update(
+          ({
+            pm_lead_id: sync.pmLeadId,
+            pm_synced_at: new Date().toISOString(),
+          } satisfies TablesUpdate<"leads">) as never,
+        )
+        .eq("id", leadId);
+    }
+  }
+
   revalidatePath("/leads/dialer");
   revalidatePath("/leads");
-  return {};
+  return warning ? { warning } : {};
 }
 
 export async function saveNote(leadId: string, body: string): Promise<ActionResult> {
