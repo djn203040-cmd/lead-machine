@@ -179,12 +179,21 @@ def angles_preview(
         True, help="Only sample leads we can quote a DKK saving for."
     ),
     diversify: bool = typer.Option(True, help="Spread the sample across branche groups."),
+    write: bool = typer.Option(
+        False,
+        "--write",
+        help="Also save the sample to lead_angles + rescore it, so it shows in the app.",
+    ),
 ) -> None:
-    """Generate sample angles for review — WITHOUT writing them to lead_angles.
+    """Generate sample angles for review — by default WITHOUT touching lead_angles.
 
     Read a prompt change before it rewrites the whole book: this persists
     nothing, so a batch you don't like costs only tokens. Writes a Markdown file
     with, per lead, the exact brief the model was given and the angle it wrote.
+
+    Pass --write to review the sample in the dashboard instead of in the file:
+    it overwrites those leads' angles and rescores them (the DKK band the UI
+    shows is read off the score breakdown).
     """
     from .angles.prompt import build_user_prompt
     from .config import settings
@@ -193,12 +202,21 @@ def angles_preview(
 
     db = get_client()
     samples = preview_angles(
-        db, settings, limit=limit, require_revenue=require_revenue, diversify=diversify
+        db,
+        settings,
+        limit=limit,
+        require_revenue=require_revenue,
+        diversify=diversify,
+        write=write,
     )
 
     path = Path(out)
     path.write_text(_render_samples(samples, build_user_prompt), encoding="utf-8")
     typer.echo(f"{len(samples)} sample angles → {path}")
+    if write:
+        typer.echo("saved to lead_angles + rescored:")
+        for lead, _ in samples:
+            typer.echo(f"  {lead.lead_id}  {lead.company_name}")
 
 
 def _render_samples(samples: list, build_user_prompt) -> str:

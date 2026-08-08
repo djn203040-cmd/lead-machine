@@ -379,15 +379,19 @@ def preview_angles(
     limit: int,
     require_revenue: bool = True,
     diversify: bool = True,
+    write: bool = False,
 ) -> list[tuple[Any, Any]]:
-    """Generate angles for a sample of leads **without persisting anything**.
+    """Generate angles for a sample of leads, by default **persisting nothing**.
 
-    The point is to read a prompt change before it rewrites the whole book:
-    nothing is written to ``lead_angles``, so a bad batch costs only tokens.
-    Returns ``(LeadForAngle, Angle)`` pairs; a lead whose generation fails is
-    skipped rather than failing the sample.
+    The point is to read a prompt change before it rewrites the whole book: with
+    ``write=False`` nothing touches ``lead_angles``, so a bad batch costs only
+    tokens. ``write=True`` upserts the sample so it can be reviewed in the app
+    instead of in a file — it overwrites those leads' existing angles, and
+    rescores them, because the dashboard reads the DKK band off the score
+    breakdown. Returns ``(LeadForAngle, Angle)`` pairs; a lead whose generation
+    fails is skipped rather than failing the sample.
     """
-    from .angles import ClaudeAnglesClient, generate_one
+    from .angles import ClaudeAnglesClient, SupabaseAngleWriter, generate_one
 
     leads = _angle_leads(
         db,
@@ -396,13 +400,28 @@ def preview_angles(
         require_revenue=require_revenue,
         diversify=diversify,
     )
+    writer = SupabaseAngleWriter(db) if write else None
     out: list[tuple[Any, Any]] = []
     with ClaudeAnglesClient.from_settings(settings) as client:
         for lead in leads:
             try:
-                out.append((lead, generate_one(lead, client)))
+                angle = generate_one(lead, client)
             except Exception:
                 continue
+            if writer is not None:
+                writer.write(lead.lead_id, angle.as_row())
+            out.append((lead, angle))
+
+    if write and out:
+        # A sampled angle quotes a DKK band the UI reads from lead_scores —
+        # so the sample is only reviewable in the app once these are rescored.
+        score_leads(
+            db,
+            settings,
+            limit=len(out),
+            only_qualified=False,
+            lead_ids=[lead.lead_id for lead, _ in out],
+        )
     return out
 
 
