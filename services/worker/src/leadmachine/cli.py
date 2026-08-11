@@ -154,16 +154,24 @@ def angles(
     only_missing: bool = typer.Option(
         True, help="Skip leads that already have a generated angle."
     ),
+    concurrency: int = typer.Option(
+        None, help="Leads in flight at once. Default 6; pass 1 for a sequential run."
+    ),
 ) -> None:
     """Generate Danish phone-call sales angles with Claude (requires ANTHROPIC_API_KEY)."""
+    from .angles import DEFAULT_CONCURRENCY
     from .config import settings
     from .db import get_client
     from .jobs import JobRun
     from .pipeline import generate_angles
 
+    workers = concurrency or DEFAULT_CONCURRENCY
     db = get_client()
-    with JobRun(db, "angles", payload={"limit": limit, "only_missing": only_missing}) as job:
-        stats = generate_angles(db, settings, limit=limit, only_missing=only_missing)
+    payload = {"limit": limit, "only_missing": only_missing, "concurrency": workers}
+    with JobRun(db, "angles", payload=payload) as job:
+        stats = generate_angles(
+            db, settings, limit=limit, only_missing=only_missing, concurrency=workers
+        )
         job.result = stats.as_dict()
 
     typer.echo(json.dumps(stats.as_dict(), indent=2))

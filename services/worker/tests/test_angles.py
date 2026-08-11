@@ -334,6 +334,37 @@ def test_run_angles_can_still_opt_into_skipping_unqualified() -> None:
     assert stats.generated == 0
 
 
+def test_run_angles_is_correct_when_leads_run_in_parallel() -> None:
+    """Concurrency is only safe if the tally and the writes don't race."""
+    client = MockAnglesClient()
+    writer = FakeAngleWriter()
+    leads = [_lead(lead_id=f"L{i}") for i in range(50)]
+
+    stats = run_angles(leads, client, writer, concurrency=8)
+
+    assert stats.seen == 50
+    assert stats.generated == 50
+    assert stats.errors == 0
+    assert len(writer.writes) == 50
+    assert len(client.calls) == 50
+
+
+def test_run_angles_parallel_still_tallies_failures() -> None:
+    class FlakyClient:
+        def generate(self, system: str, user: str):
+            raise RuntimeError("api down")
+
+    stats = run_angles(
+        [_lead(lead_id=f"L{i}") for i in range(10)],
+        FlakyClient(),
+        FakeAngleWriter(),
+        concurrency=4,
+    )
+    assert stats.seen == 10
+    assert stats.errors == 10
+    assert stats.generated == 0
+
+
 def test_run_angles_counts_client_errors() -> None:
     class BoomClient:
         def generate(self, system: str, user: str):

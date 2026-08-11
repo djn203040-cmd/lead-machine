@@ -19,6 +19,7 @@ from typing import Any
 
 from supabase import Client
 
+from .angles import DEFAULT_CONCURRENCY
 from .config import Settings
 
 # Flip lead statuses in bounded batches (PostgREST caps request URL length).
@@ -364,12 +365,15 @@ def generate_angles(
     limit: int,
     only_missing: bool = True,
     lead_ids: list[str] | None = None,
+    concurrency: int = DEFAULT_CONCURRENCY,
 ) -> Any:
     from .angles import ClaudeAnglesClient, SupabaseAngleWriter, run_angles
 
     leads = _angle_leads(db, limit=limit, only_missing=only_missing, lead_ids=lead_ids)
     with ClaudeAnglesClient.from_settings(settings) as client:
-        return run_angles(leads, client, SupabaseAngleWriter(db))
+        return run_angles(
+            leads, client, SupabaseAngleWriter(db), concurrency=concurrency
+        )
 
 
 def preview_angles(

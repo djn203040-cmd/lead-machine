@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from .client import ANGLE_SCHEMA, ANGLES_MODEL, ClaudeAnglesClient
 from .generate import (
+    DEFAULT_CONCURRENCY,
     AnglesClientProtocol,
     AngleStats,
     AngleWriter,
@@ -30,6 +31,7 @@ __all__ = [
     "run_angles",
     "AngleStats",
     "AnglesClientProtocol",
+    "DEFAULT_CONCURRENCY",
     "AngleWriter",
     "SupabaseAngleWriter",
     "Angle",

@@ -9,8 +9,10 @@ no network.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from threading import Lock
 from typing import Any, Iterable, Protocol
 
 from .models import Angle, LeadForAngle
@@ -20,6 +22,13 @@ from .prompt import build_prompt
 # savings offer this no longer blocks a pitch — the call is about their
 # operations, not their website — so it is opt-in via ``skip_unqualified``.
 _UNQUALIFIED = frozenset({"unknown", ""})
+
+# One Opus call per lead takes tens of seconds, so a book-wide regeneration run
+# sequentially is measured in hours — it has been "the slow tail" of every
+# re-enrich. The calls are independent and the SDK retries rate limits itself,
+# so a handful in flight turns hours into minutes. Kept modest: we are one
+# client sharing an account-wide rate limit.
+DEFAULT_CONCURRENCY = 6
 
 
 @dataclass(slots=True)
@@ -54,30 +63,46 @@ def run_angles(
     writer: AngleWriter,
     *,
     skip_unqualified: bool = False,
+    concurrency: int = DEFAULT_CONCURRENCY,
 ) -> AngleStats:
     """Generate and persist an angle for each lead.
 
     ``skip_unqualified`` drops leads whose website was never classified. It
     defaults off: the pitch is about the money we can save them, so an
     unqualified website is no longer a reason to stay silent.
+
+    ``concurrency`` is how many leads are in flight at once. Each lead is
+    independent — its own prompt, its own row — so the only shared state is the
+    tally, which is locked. Pass 1 for a strictly sequential run.
     """
     stats = AngleStats()
-    for lead in leads:
-        stats.seen += 1
+    lock = Lock()
+
+    def handle(lead: LeadForAngle) -> None:
+        with lock:
+            stats.seen += 1
         if skip_unqualified and lead.website_need in _UNQUALIFIED:
-            stats.skipped += 1
-            continue
+            with lock:
+                stats.skipped += 1
+            return
         try:
             angle = generate_one(lead, client)
-        except Exception:
-            stats.errors += 1
-            continue
-        try:
             writer.write(lead.lead_id, angle.as_row())
         except Exception:
-            stats.errors += 1
-            continue
-        stats.generated += 1
+            with lock:
+                stats.errors += 1
+            return
+        with lock:
+            stats.generated += 1
+
+    if concurrency <= 1:
+        for lead in leads:
+            handle(lead)
+        return stats
+
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        # list() drains the iterator so exceptions surface here, not silently.
+        list(pool.map(handle, leads))
     return stats
 
 
