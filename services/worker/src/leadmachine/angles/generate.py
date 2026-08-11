@@ -30,12 +30,26 @@ _UNQUALIFIED = frozenset({"unknown", ""})
 # client sharing an account-wide rate limit.
 DEFAULT_CONCURRENCY = 6
 
+# How many times to ask for one lead's angle before accepting what we get.
+DEFAULT_ATTEMPTS = 2
+
+# Appended to the brief on a retry, naming the exact failure so the second try
+# doesn't repeat it.
+_RETRY_NUDGE = """
+
+BEMÆRK — dit forrige svar var ubrugeligt: et eller flere af felterne \
+opening_line_da, angle_da og cta_da var tomme. Udfyld ALLE tre. De er tre \
+forskellige ting og må ikke slås sammen: opening_line_da er ÉN kort spoken \
+sætning (max ca. 200 tegn), angle_da er de 2-4 sætninger, der forklarer \
+tilbuddet, og cta_da er selve booking-spørgsmålet."""
+
 
 @dataclass(slots=True)
 class AngleStats:
     seen: int = 0
     generated: int = 0
     skipped: int = 0  # website never qualified, and the caller asked to skip those
+    incomplete: int = 0  # written, but a spoken field came back blank even on retry
     errors: int = 0
 
     def as_dict(self) -> dict[str, int]:
@@ -50,11 +64,26 @@ class AngleWriter(Protocol):
     def write(self, lead_id: str, angle: dict[str, Any]) -> None: ...
 
 
-def generate_one(lead: LeadForAngle, client: AnglesClientProtocol) -> Angle:
-    """Build the prompt, call the model, and parse the angle for one lead."""
+def generate_one(
+    lead: LeadForAngle,
+    client: AnglesClientProtocol,
+    *,
+    attempts: int = DEFAULT_ATTEMPTS,
+) -> Angle:
+    """Build the prompt, call the model, and parse the angle for one lead.
+
+    Retries an incomplete angle (a blank spoken field) up to ``attempts`` times,
+    telling the model what it left out. Returns the last attempt either way —
+    a partial angle still beats no angle — so callers should check
+    :attr:`Angle.is_complete` if they want to tally the shortfall.
+    """
     system, user = build_prompt(lead)
-    payload = client.generate(system, user)
-    return Angle.from_payload(payload)
+    angle = Angle.from_payload(client.generate(system, user))
+    for _ in range(max(0, attempts - 1)):
+        if angle.is_complete:
+            return angle
+        angle = Angle.from_payload(client.generate(system, user + _RETRY_NUDGE))
+    return angle
 
 
 def run_angles(
@@ -94,6 +123,8 @@ def run_angles(
             return
         with lock:
             stats.generated += 1
+            if not angle.is_complete:
+                stats.incomplete += 1
 
     if concurrency <= 1:
         for lead in leads:

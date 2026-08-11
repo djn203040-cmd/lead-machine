@@ -334,6 +334,70 @@ def test_run_angles_can_still_opt_into_skipping_unqualified() -> None:
     assert stats.generated == 0
 
 
+# --- incomplete angles are retried, not shipped ----------------------------
+def _payload(**over) -> dict:
+    base = {
+        "summary_da": "s",
+        "weaknesses_da": "w",
+        "angle_da": "Vinklen forklaret.",
+        "opening_line_da": "Hej, det er [dit navn].",
+        "cta_da": "Skal vi tage ti minutter?",
+        "objections": [],
+        "competitor_name": "",
+        "competitor_angle_type": "none",
+    }
+    base.update(over)
+    return base
+
+
+class ScriptedClient:
+    """Returns each queued payload in turn, recording the prompts it saw."""
+
+    def __init__(self, *payloads: dict) -> None:
+        self._payloads = list(payloads)
+        self.calls: list[tuple[str, str]] = []
+
+    def generate(self, system: str, user: str) -> dict:
+        self.calls.append((system, user))
+        return self._payloads[min(len(self.calls) - 1, len(self._payloads) - 1)]
+
+
+def test_angle_is_incomplete_when_a_spoken_field_is_blank() -> None:
+    assert Angle.from_payload(_payload()).is_complete
+    # Structured output guarantees the key, not that it holds anything.
+    assert not Angle.from_payload(_payload(angle_da="")).is_complete
+    assert not Angle.from_payload(_payload(cta_da="   ")).is_complete
+    assert not Angle.from_payload(_payload(opening_line_da="")).is_complete
+
+
+def test_generate_one_retries_a_blank_field_and_says_what_was_missing() -> None:
+    client = ScriptedClient(_payload(angle_da=""), _payload())
+    angle = generate_one(_lead(), client)
+
+    assert angle.is_complete
+    assert len(client.calls) == 2
+    # The retry names the failure so the model doesn't repeat it.
+    assert "tomme" in client.calls[1][1]
+    assert client.calls[1][1] != client.calls[0][1]
+
+
+def test_generate_one_does_not_retry_a_good_angle() -> None:
+    client = ScriptedClient(_payload())
+    assert generate_one(_lead(), client).is_complete
+    assert len(client.calls) == 1
+
+
+def test_run_angles_tallies_an_angle_that_stays_incomplete() -> None:
+    """Still written — a partial angle beats a stale one — but counted."""
+    client = ScriptedClient(_payload(angle_da=""))
+    writer = FakeAngleWriter()
+    stats = run_angles([_lead(lead_id="A")], client, writer, concurrency=1)
+
+    assert stats.generated == 1
+    assert stats.incomplete == 1
+    assert writer.writes["A"]["opening_line_da"]  # what we did get is kept
+
+
 def test_run_angles_is_correct_when_leads_run_in_parallel() -> None:
     """Concurrency is only safe if the tally and the writes don't race."""
     client = MockAnglesClient()

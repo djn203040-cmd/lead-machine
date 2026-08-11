@@ -56,6 +56,19 @@ class Angle:
     competitor_name: str | None = None
     competitor_angle_type: str = "none"
 
+    @property
+    def is_complete(self) -> bool:
+        """Are the three spoken parts the caller actually reads all present?
+
+        Structured output guarantees the *keys*, not that they hold anything —
+        the model sometimes folds the whole pitch into an over-long
+        ``opening_line_da`` and returns ``angle_da`` as an empty string, which
+        renders as a blank "Vinkel" in the dialer.
+        """
+        return bool(
+            self.opening_line_da.strip() and self.angle_da.strip() and self.cta_da.strip()
+        )
+
     @classmethod
     def from_payload(cls, data: dict[str, Any]) -> "Angle":
         """Build from the model's JSON payload, coercing/validating defensively."""
