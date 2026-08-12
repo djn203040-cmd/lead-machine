@@ -31,6 +31,8 @@ provision the Robinson list, and run `leadmachine screen`.
 | `ANTHROPIC_API_KEY` | — | ✅ | **yes** | M6 Danish angles (`claude-opus-4-8`) |
 | `PAGESPEED_API_KEY` | — | ✅ | no* | optional; PSI is skipped if unset |
 | `ROBINSON_LIST_PATH` | — | ✅ | no | path to the licensed Robinson file on the host, e.g. `/data/robinson.txt` |
+| `PM_SUPABASE_URL` | ✅ | — | no | Sonorous OS (PM system) project URL — `https://mrexjooigorziheilsla.supabase.co`; dialer-outcome sync no-ops if unset |
+| `PM_SUPABASE_SECRET_KEY` | ✅ | — | **yes** | secret/service key of the **PM** project (server-only env var — never `NEXT_PUBLIC`, never the Lead Machine key) |
 
 `*` not secret but treat as private. **Never** put `SUPABASE_SERVICE_ROLE_KEY`
 in the web app — the browser must only see the anon key.
