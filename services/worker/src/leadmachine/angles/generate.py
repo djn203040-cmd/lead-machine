@@ -37,11 +37,10 @@ DEFAULT_ATTEMPTS = 2
 # doesn't repeat it.
 _RETRY_NUDGE = """
 
-BEMÆRK — dit forrige svar var ubrugeligt: et eller flere af felterne \
-opening_line_da, angle_da og cta_da var tomme. Udfyld ALLE tre. De er tre \
-forskellige ting og må ikke slås sammen: opening_line_da er ÉN kort spoken \
-sætning (max ca. 200 tegn), angle_da er de 2-4 sætninger, der forklarer \
-tilbuddet, og cta_da er selve booking-spørgsmålet."""
+BEMÆRK — dit forrige svar var ubrugeligt: weaknesses_da var tom og/eller \
+objections var en tom liste. Udfyld BEGGE: weaknesses_da er de private noter om, \
+hvor tiden og pengene siver i netop denne virksomhed plus regnestykket, og \
+objections er 2-3 sandsynlige indvendinger med korte svar."""
 
 
 @dataclass(slots=True)
@@ -49,7 +48,7 @@ class AngleStats:
     seen: int = 0
     generated: int = 0
     skipped: int = 0  # website never qualified, and the caller asked to skip those
-    incomplete: int = 0  # written, but a spoken field came back blank even on retry
+    incomplete: int = 0  # written, but notes/objections came back blank even on retry
     errors: int = 0
 
     def as_dict(self) -> dict[str, int]:
@@ -72,7 +71,7 @@ def generate_one(
 ) -> Angle:
     """Build the prompt, call the model, and parse the angle for one lead.
 
-    Retries an incomplete angle (a blank spoken field) up to ``attempts`` times,
+    Retries an incomplete angle (blank notes or no objections) up to ``attempts`` times,
     telling the model what it left out. Returns the last attempt either way —
     a partial angle still beats no angle — so callers should check
     :attr:`Angle.is_complete` if they want to tally the shortfall.

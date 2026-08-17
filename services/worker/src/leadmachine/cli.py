@@ -245,14 +245,8 @@ def _render_samples(samples: list, build_user_prompt) -> str:
             f"*{where}* · score {lead.score if lead.score is not None else '—'}"
             f" · {lead.phone_type or 'ukendt nummertype'}",
             "",
-            "### Åbning",
-            f"> {angle.opening_line_da}",
-            "",
-            "### Vinkel",
-            angle.angle_da,
-            "",
-            "### Book mødet",
-            f"> {angle.cta_da}",
+            "_Åbning, pitch, pris og booking er fast script i appen — her kun det AI'en "
+            "leverer pr. lead._",
             "",
         ]
         if angle.objections:

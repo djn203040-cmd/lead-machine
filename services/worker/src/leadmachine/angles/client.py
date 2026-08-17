@@ -24,9 +24,6 @@ ANGLE_SCHEMA: dict[str, Any] = {
     "properties": {
         "summary_da": {"type": "string"},
         "weaknesses_da": {"type": "string"},
-        "angle_da": {"type": "string"},
-        "opening_line_da": {"type": "string"},
-        "cta_da": {"type": "string"},
         "objections": {
             "type": "array",
             "items": {
@@ -45,9 +42,6 @@ ANGLE_SCHEMA: dict[str, Any] = {
     "required": [
         "summary_da",
         "weaknesses_da",
-        "angle_da",
-        "opening_line_da",
-        "cta_da",
         "objections",
         "competitor_name",
         "competitor_angle_type",

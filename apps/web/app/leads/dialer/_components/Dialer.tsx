@@ -18,15 +18,16 @@ import {
 } from "@/lib/leadmeta";
 import { classifyPhone, phoneTypeMeta } from "@/lib/phone";
 import type { SavingsView } from "@/lib/savings";
+import { buildCallScript } from "@/lib/script";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
+import CallScriptCard from "../../_components/CallScriptCard";
 import { logOutcome, saveNote, scheduleFollowup } from "../actions";
 
+// What the AI still contributes per lead: private notes + tailored objections.
+// The spoken script itself is fixed — see lib/script.ts.
 export type DialerAngle = {
-  opening_line_da: string | null;
   summary_da: string | null;
-  angle_da: string | null;
   weaknesses_da: string | null;
-  cta_da: string | null;
   objections: AngleObjection[];
   competitor_angle_type: string | null;
   competitor_name: string | null;
@@ -291,8 +292,9 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   const fin = view<FinancialEnrichment>(lead.financial);
   const contact = view<ContactEnrichment>(lead.contact);
   const decisionMakers = contact.decision_makers ?? [];
+  const firstName = voicemailFirstName(decisionMakers);
   const voicemail = buildVoicemail({
-    firstName: voicemailFirstName(decisionMakers),
+    firstName,
     companyName: lead.company_name,
     branchekode: lead.branchekode,
   });
@@ -314,6 +316,14 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   const gatekeeperMeta = phoneClasses.includes("mobile")
     ? null
     : phoneTypeMeta(phoneClasses.find((c) => c !== null) ?? null);
+  // The fixed script — only the opener variant, first name and savings vary.
+  const script = buildCallScript({
+    firstName,
+    phoneType: phoneClasses.includes("mobile")
+      ? "mobile"
+      : (phoneClasses.find((c) => c !== null) ?? null),
+    savings: lead.savings,
+  });
 
   return (
     <div>
@@ -378,38 +388,19 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
 
           {lead.savings && <SavingsPanel savings={lead.savings} />}
 
+          <CallScriptCard script={script} />
+
           {angle && (
-            <section className="overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100/50 p-5 shadow-[var(--shadow-card)]">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-brand-800">
-                  <span className="grid h-6 w-6 place-items-center rounded-md bg-brand-700 text-white">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
-                      <path d="m13 2-9 11h6l-1 9 9-11h-6z" fill="currentColor" />
-                    </svg>
-                  </span>
-                  Salgsvinkel
+            <section className="card card-pad">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-faint">
+                  AI-noter til dette lead
                 </h2>
-                <span className="text-xs text-brand-700">
+                <span className="text-xs text-faint">
                   {COMPETITOR_ANGLE_DA[angle.competitor_angle_type ?? ""] ?? ""}
                   {angle.competitor_name ? ` · ${angle.competitor_name}` : ""}
                 </span>
               </div>
-              {angle.opening_line_da && (
-                <blockquote className="border-l-2 border-brand-500 pl-3 text-base font-medium text-ink">
-                  «{angle.opening_line_da}»
-                </blockquote>
-              )}
-              <AnglePart label="Vinkel" text={angle.angle_da} />
-              {angle.cta_da && (
-                <div className="mt-4 rounded-lg border border-brand-200 bg-white/70 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
-                    Book mødet
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-ink">
-                    «{angle.cta_da}»
-                  </p>
-                </div>
-              )}
               <Objections items={angle.objections} />
               <AnglePart label="Resumé" text={angle.summary_da} />
               <AnglePart label="Hvor tiden og pengene går (intern)" text={angle.weaknesses_da} />

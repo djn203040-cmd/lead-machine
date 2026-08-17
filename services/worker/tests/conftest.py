@@ -264,15 +264,12 @@ class MockAnglesClient:
 
     def __init__(self, payload: dict[str, Any] | None = None) -> None:
         self.payload = payload or {
-            "summary_da": "Lokal frisør uden hjemmeside.",
-            "weaknesses_da": "Ingen hjemmeside; kun Facebook.",
-            "angle_da": "Vi har faktisk allerede bygget en færdig demo af en ny hjemmeside til jer.",
-            "opening_line_da": "Hej, jeg så at I ikke har en hjemmeside endnu — derfor ringer jeg.",
-            "cta_da": "Skal vi ikke tage et kort kald på ti minutter, hvor jeg viser dig den?",
+            "summary_da": "Lokal frisør med to ansatte — booking og afbud kører på telefon.",
+            "weaknesses_da": "- Booking, afbud og påmindelser håndteres manuelt\n- Est. 40–80k DKK/år; vores 20% én gang: 8–16k",
             "objections": [
                 {
                     "objection_da": "Det er jeg ikke interesseret i.",
-                    "response_da": "Helt fair — men den er jo allerede bygget, så det koster dig kun ti minutter at kigge.",
+                    "response_da": "Helt fair — må jeg spørge, hvad I gør i dag, når nogen melder afbud?",
                 },
             ],
             "competitor_name": "",

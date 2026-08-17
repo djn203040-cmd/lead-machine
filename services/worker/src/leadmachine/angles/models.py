@@ -30,7 +30,7 @@ class LeadForAngle:
     employees: int | None = None
     score: int | None = None
     # 'mobile' (likely the owner's own phone) | 'landline' | 'service' | None.
-    # Steers the opener: direct-to-owner pitch vs. gatekeeper variant.
+    # Tells the model whether to prepare a gatekeeper objection.
     phone_type: str | None = None
     website: dict[str, Any] = field(default_factory=dict)
     financial: dict[str, Any] = field(default_factory=dict)
@@ -40,34 +40,31 @@ class LeadForAngle:
 
 @dataclass(slots=True)
 class Angle:
-    """A generated Danish sales angle, ready to upsert into ``lead_angles``.
+    """The AI's per-lead notes, ready to upsert into ``lead_angles``.
 
-    ``weaknesses_da`` keeps its column name but not its old meaning: under the
-    savings offer it holds the caller's private notes on where time and money
-    leak, plus the DKK math — not a critique of their website.
+    The spoken script (opener, pitch, price, booking) is fixed in the dialer and
+    is NOT generated any more, so this holds only what is specific to the lead:
+    ``summary_da`` (why call now), ``weaknesses_da`` (private notes on where
+    time and money leak, plus the DKK math — the column name is historical) and
+    the tailored ``objections``. The legacy spoken columns are written as null
+    so a regenerated row does not keep a stale, now-off-script opener.
     """
 
     summary_da: str
     weaknesses_da: str
-    angle_da: str
-    opening_line_da: str
-    cta_da: str = ""
     objections: list[dict[str, str]] = field(default_factory=list)
     competitor_name: str | None = None
     competitor_angle_type: str = "none"
 
     @property
     def is_complete(self) -> bool:
-        """Are the three spoken parts the caller actually reads all present?
+        """Did the model deliver the parts the caller actually uses?
 
         Structured output guarantees the *keys*, not that they hold anything —
-        the model sometimes folds the whole pitch into an over-long
-        ``opening_line_da`` and returns ``angle_da`` as an empty string, which
-        renders as a blank "Vinkel" in the dialer.
+        blank notes or an empty objections list render as an empty card in the
+        dialer, so both count as incomplete and earn a retry.
         """
-        return bool(
-            self.opening_line_da.strip() and self.angle_da.strip() and self.cta_da.strip()
-        )
+        return bool(self.weaknesses_da.strip() and self.objections)
 
     @classmethod
     def from_payload(cls, data: dict[str, Any]) -> "Angle":
@@ -82,9 +79,6 @@ class Angle:
         return cls(
             summary_da=str(data.get("summary_da") or "").strip(),
             weaknesses_da=str(data.get("weaknesses_da") or "").strip(),
-            angle_da=str(data.get("angle_da") or "").strip(),
-            opening_line_da=str(data.get("opening_line_da") or "").strip(),
-            cta_da=str(data.get("cta_da") or "").strip(),
             objections=_parse_objections(data.get("objections")),
             competitor_name=name,
             competitor_angle_type=category,
@@ -95,9 +89,11 @@ class Angle:
         return {
             "summary_da": self.summary_da or None,
             "weaknesses_da": self.weaknesses_da or None,
-            "angle_da": self.angle_da or None,
-            "opening_line_da": self.opening_line_da or None,
-            "cta_da": self.cta_da or None,
+            # Legacy spoken columns — the script is fixed in the app now. Nulled
+            # explicitly so old generated openers can't resurface.
+            "angle_da": None,
+            "opening_line_da": None,
+            "cta_da": None,
             # jsonb array of {objection_da, response_da}; always a list so the UI
             # can map over it without null-guarding.
             "objections": self.objections,

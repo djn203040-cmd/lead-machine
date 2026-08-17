@@ -17,16 +17,24 @@
 
 ## Danish script (sole traders & company decision-makers)
 
-> "Hej, det er [navn] fra [virksomhed]. Jeg ringer, fordi vi har set i
-> **CVR-registeret**, at I [driver …], og vi hjælper lokale virksomheder med at
-> få det manuelle arbejde ud af hverdagen — I betaler kun en andel af det, vi
-> rent faktisk sparer jer.
+The spoken script is fixed and lives in `apps/web/lib/script.ts` (rendered in
+the dialer and on the lead page). The Art. 14 disclosure is step 2, right after
+the opener — say it before the pitch, every first call:
+
+> **Åbning (ejer tager den):** "Hej, det er [navn]. Jeg ved godt det er pisse
+> irriterende at blive ringet op af en, man ikke har bedt om, men må jeg få 30
+> sekunder af din tid?"
 >
-> Helt kort om data: vi har jeres oplysninger fra det offentlige CVR-register,
-> og I kan læse vores privatlivspolitik på [link]. I kan til enhver tid bede os
-> om **ikke** at kontakte jer igen — så fjerner vi jer med det samme.
+> **Åbning (medarbejder/reception):** "Hej, det er [navn]. Jeg ved godt jeg
+> ringer helt uopfordret — hvem er den rigtige at fange, når det handler om
+> hvordan I får hverdagen til at køre? … Er det [ejer]?"
 >
-> Har du to minutter til, at jeg fortæller hvorfor jeg ringer?"
+> **Kilde (Art. 14):** "Jeg har fundet jer i **CVR-registeret** og undersøgt
+> lidt om, hvad I laver."
+>
+> Then the pitch. If they ask about their data or want to be left alone, add:
+> "I kan læse vores privatlivspolitik på [link], og I kan til enhver tid bede os
+> om **ikke** at kontakte jer igen — så fjerner vi jer med det samme."
 
 If the person objects to marketing at any point:
 

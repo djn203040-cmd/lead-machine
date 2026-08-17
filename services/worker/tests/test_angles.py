@@ -177,8 +177,6 @@ def test_angle_from_payload_maps_fields() -> None:
         {
             "summary_da": "  Resumé  ",
             "weaknesses_da": "Svagheder",
-            "angle_da": "Vinkel",
-            "opening_line_da": "Hej!",
             "competitor_name": "Klip & Co",
             "competitor_angle_type": "fomo",
         }
@@ -188,14 +186,11 @@ def test_angle_from_payload_maps_fields() -> None:
     assert angle.competitor_angle_type == "fomo"
 
 
-def test_angle_from_payload_parses_cta_and_objections() -> None:
+def test_angle_from_payload_parses_objections() -> None:
     angle = Angle.from_payload(
         {
             "summary_da": "x",
             "weaknesses_da": "y",
-            "angle_da": "z",
-            "opening_line_da": "w",
-            "cta_da": "  Skal vi tage et kort kald?  ",
             "objections": [
                 {"objection_da": "  Send mig en mail  ", "response_da": "  Klart  "},
                 {"objection_da": "", "response_da": "dropped — no objection"},
@@ -207,7 +202,6 @@ def test_angle_from_payload_parses_cta_and_objections() -> None:
             "competitor_angle_type": "none",
         }
     )
-    assert angle.cta_da == "Skal vi tage et kort kald?"  # trimmed
     # malformed/blank items dropped, list capped at 3
     assert angle.objections == [
         {"objection_da": "Send mig en mail", "response_da": "Klart"},
@@ -216,32 +210,29 @@ def test_angle_from_payload_parses_cta_and_objections() -> None:
     ]
 
 
-def test_angle_from_payload_defaults_missing_cta_and_objections() -> None:
+def test_angle_from_payload_defaults_missing_objections() -> None:
     angle = Angle.from_payload(
         {
             "summary_da": "x",
             "weaknesses_da": "y",
-            "angle_da": "z",
-            "opening_line_da": "w",
             "competitor_name": "",
             "competitor_angle_type": "none",
         }
     )
-    assert angle.cta_da == ""
     assert angle.objections == []
 
 
-def test_angle_as_row_carries_cta_and_objections() -> None:
+def test_angle_as_row_carries_objections_and_nulls_the_fixed_script_columns() -> None:
+    """The script is fixed in the app — a regen must wipe any old generated opener."""
     row = Angle(
         summary_da="s",
         weaknesses_da="w",
-        angle_da="a",
-        opening_line_da="o",
-        cta_da="c",
         objections=[{"objection_da": "q", "response_da": "r"}],
     ).as_row()
-    assert row["cta_da"] == "c"
     assert row["objections"] == [{"objection_da": "q", "response_da": "r"}]
+    assert row["opening_line_da"] is None
+    assert row["angle_da"] is None
+    assert row["cta_da"] is None
 
 
 def test_angle_from_payload_coerces_invalid_category_and_blank_name() -> None:
@@ -249,8 +240,6 @@ def test_angle_from_payload_coerces_invalid_category_and_blank_name() -> None:
         {
             "summary_da": "x",
             "weaknesses_da": "y",
-            "angle_da": "z",
-            "opening_line_da": "w",
             "competitor_name": "   ",
             "competitor_angle_type": "bogus",
         }
@@ -264,8 +253,6 @@ def test_angle_none_category_drops_competitor_name() -> None:
         {
             "summary_da": "x",
             "weaknesses_da": "y",
-            "angle_da": "z",
-            "opening_line_da": "w",
             "competitor_name": "Some Name",
             "competitor_angle_type": "none",
         }
@@ -274,9 +261,7 @@ def test_angle_none_category_drops_competitor_name() -> None:
 
 
 def test_angle_as_row_empties_to_null() -> None:
-    row = Angle(
-        summary_da="s", weaknesses_da="", angle_da="a", opening_line_da="o"
-    ).as_row()
+    row = Angle(summary_da="s", weaknesses_da="").as_row()
     assert row["summary_da"] == "s"
     assert row["weaknesses_da"] is None
     assert row["competitor_angle_type"] == "none"
@@ -299,7 +284,7 @@ def test_generate_one_calls_client_and_parses() -> None:
     client = MockAnglesClient()
     angle = generate_one(_lead(), client)
     assert angle.competitor_angle_type == "first_mover"
-    assert angle.opening_line_da.startswith("Hej")
+    assert angle.objections  # the per-lead part the caller actually uses
     assert len(client.calls) == 1
     assert "Salon Sax" in client.calls[0][1]  # the user prompt
 
@@ -338,11 +323,8 @@ def test_run_angles_can_still_opt_into_skipping_unqualified() -> None:
 def _payload(**over) -> dict:
     base = {
         "summary_da": "s",
-        "weaknesses_da": "w",
-        "angle_da": "Vinklen forklaret.",
-        "opening_line_da": "Hej, det er [dit navn].",
-        "cta_da": "Skal vi tage ti minutter?",
-        "objections": [],
+        "weaknesses_da": "- Tilbud og opfølgning kører manuelt",
+        "objections": [{"objection_da": "Ikke interesseret", "response_da": "Helt fair."}],
         "competitor_name": "",
         "competitor_angle_type": "none",
     }
@@ -362,22 +344,21 @@ class ScriptedClient:
         return self._payloads[min(len(self.calls) - 1, len(self._payloads) - 1)]
 
 
-def test_angle_is_incomplete_when_a_spoken_field_is_blank() -> None:
+def test_angle_is_incomplete_when_notes_or_objections_are_blank() -> None:
     assert Angle.from_payload(_payload()).is_complete
     # Structured output guarantees the key, not that it holds anything.
-    assert not Angle.from_payload(_payload(angle_da="")).is_complete
-    assert not Angle.from_payload(_payload(cta_da="   ")).is_complete
-    assert not Angle.from_payload(_payload(opening_line_da="")).is_complete
+    assert not Angle.from_payload(_payload(weaknesses_da="   ")).is_complete
+    assert not Angle.from_payload(_payload(objections=[])).is_complete
 
 
 def test_generate_one_retries_a_blank_field_and_says_what_was_missing() -> None:
-    client = ScriptedClient(_payload(angle_da=""), _payload())
+    client = ScriptedClient(_payload(weaknesses_da=""), _payload())
     angle = generate_one(_lead(), client)
 
     assert angle.is_complete
     assert len(client.calls) == 2
     # The retry names the failure so the model doesn't repeat it.
-    assert "tomme" in client.calls[1][1]
+    assert "BEMÆRK" in client.calls[1][1]
     assert client.calls[1][1] != client.calls[0][1]
 
 
@@ -389,13 +370,13 @@ def test_generate_one_does_not_retry_a_good_angle() -> None:
 
 def test_run_angles_tallies_an_angle_that_stays_incomplete() -> None:
     """Still written — a partial angle beats a stale one — but counted."""
-    client = ScriptedClient(_payload(angle_da=""))
+    client = ScriptedClient(_payload(objections=[]))
     writer = FakeAngleWriter()
     stats = run_angles([_lead(lead_id="A")], client, writer, concurrency=1)
 
     assert stats.generated == 1
     assert stats.incomplete == 1
-    assert writer.writes["A"]["opening_line_da"]  # what we did get is kept
+    assert writer.writes["A"]["weaknesses_da"]  # what we did get is kept
 
 
 def test_run_angles_is_correct_when_leads_run_in_parallel() -> None:
@@ -441,13 +422,7 @@ def test_run_angles_counts_client_errors() -> None:
 
 def test_supabase_angle_writer_upserts_lead_angles() -> None:
     fake = FakeSupabase()
-    angle = Angle(
-        summary_da="s",
-        weaknesses_da="w",
-        angle_da="a",
-        opening_line_da="o",
-        competitor_angle_type="none",
-    )
+    angle = Angle(summary_da="s", weaknesses_da="w", competitor_angle_type="none")
     SupabaseAngleWriter(fake).write("lead-1", angle.as_row())
 
     assert len(fake.log) == 1
