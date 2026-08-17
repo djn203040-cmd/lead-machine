@@ -1,4 +1,4 @@
-import type { CallScript } from "@/lib/script";
+import type { CallScript, Segment } from "@/lib/script";
 
 // The fixed call script, laid out in the order it is spoken. Pure display —
 // no state, so it renders in both the client-side dialer and the server-side
@@ -26,6 +26,28 @@ function Step({
       </p>
       <div className="mt-1.5 space-y-2">{children}</div>
     </div>
+  );
+}
+
+// One paragraph of the pitch: plain text runs, with the GDPR source line and
+// the per-lead savings sentence highlighted so the caller can see at a glance
+// that (a) the CVR disclosure was said and (b) which words came from the data.
+const SEGMENT_CLASS: Record<Segment["kind"], string> = {
+  plain: "",
+  source: "rounded bg-amber-bg px-1 text-amber-fg",
+  savings: "rounded bg-brand-100 px-1 text-brand-800",
+};
+
+function Paragraph({ segments }: { segments: Segment[] }) {
+  return (
+    <p>
+      {segments.map((seg, i) => (
+        <span key={i} className={SEGMENT_CLASS[seg.kind]}>
+          {i > 0 ? " " : ""}
+          {seg.text}
+        </span>
+      ))}
+    </p>
   );
 }
 
@@ -79,30 +101,29 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
         )}
       </Step>
 
-      <Step n="2" label="Kilde" hint="skal siges — GDPR art. 14">
-        <Line>«{script.source}»</Line>
+      <Step n="2" label="Pitch" hint="ét flow — CVR-linjen er GDPR art. 14 og skal siges">
+        <blockquote className="space-y-2 border-l-2 border-brand-500 pl-3 text-sm font-medium leading-relaxed text-ink">
+          {script.pitch.map((para, i) => (
+            <Paragraph key={i} segments={para} />
+          ))}
+        </blockquote>
+        <p className="text-xs text-faint">
+          <span className="rounded bg-amber-bg px-1 text-amber-fg">gul</span> = kilde (skal
+          siges) ·{" "}
+          <span className="rounded bg-brand-100 px-1 text-brand-800">blå</span> ={" "}
+          {script.savingsLine
+            ? "besparelsen — skifter pr. lead"
+            : "besparelsen — udeladt, dette lead har intet tal"}
+        </p>
       </Step>
 
-      <Step n="3" label="Pitch">
-        {script.pitch.map((p, i) => (
-          <Line key={i}>
-            «{p}»
-            {p === script.savingsLine && (
-              <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-brand-700">
-                variabel
-              </span>
-            )}
-          </Line>
-        ))}
-      </Step>
-
-      <Step n="4" label="Smerte" hint="stil spørgsmålet — og ti stille">
+      <Step n="3" label="Smerte" hint="stil spørgsmålet — og ti stille">
         <Line>«{script.pain.ask}»</Line>
         <p className="text-xs text-faint">(lad dem svare)</p>
         <Line>«{script.pain.followup}»</Line>
       </Step>
 
-      <Step n="5" label="Book mødet">
+      <Step n="4" label="Book mødet">
         <Line>«{script.booking}»</Line>
       </Step>
 

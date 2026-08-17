@@ -40,16 +40,17 @@ tid?"
   Åbning (medarbejder/reception): "Hej, det er [navn]. Jeg ved godt jeg ringer \
 helt uopfordret — hvem er den rigtige at fange, når det handler om hvordan I \
 får hverdagen til at køre? … Er det [ejer]?"
-  Kilde (GDPR): "Jeg har fundet jer i CVR-registeret og undersøgt lidt om, hvad \
-I laver."
-  Pitch: "Vi følger jeres virksomhed i 30 dage — ikke fysisk, remote — og ser \
-helt konkret, hvor timerne og kronerne forsvinder. Derfra kigger vi på, hvad vi \
-kan optimere i lige præcis de huller. [besparelses-sætning med DKK-spændet] \
-Finder vi ikke noget, siger vi det til jer, og I betaler ikke en krone. Finder \
-vi noget, betaler I først den første krone, når vi rent faktisk har bygget det \
-til jer. Så med det sagt: Hvad er det hos jer, der æder tid, uden at det \
-egentlig er dét, du er der for? … Og hvis du fik bare halvdelen af det tilbage \
-— hvad ville du så bruge det på?"
+  Pitch (one flow; the CVR line is the GDPR art. 14 disclosure): "Jeg har \
+fundet jer i CVR-registeret og kigget lidt på, hvad I laver. Det, vi gør, er at \
+følge jeres virksomhed i 30 dage — ikke fysisk, remote — og se helt konkret, \
+hvor timerne og kronerne forsvinder. Derfra kigger vi på, hvad vi kan optimere \
+i lige præcis de huller. Finder vi ikke noget, siger vi det til jer, og I \
+betaler ikke en krone. Finder vi noget, betaler I først den første krone, når \
+vi rent faktisk har bygget det til jer. [Og bare så du ved, hvad vi taler om: \
+hos en virksomhed som jeres ligger der typisk X til Y kroner om året, der kan \
+hentes hjem — only if the brief has a figure] Så med det sagt: Hvad er det hos \
+jer, der æder tid, uden at det egentlig er dét, du er der for? … Og hvis du \
+fik bare halvdelen af det tilbage — hvad ville du så bruge det på?"
   Pris: "Det er 100 % gratis at kigge. Finder vi noget, laver vi et estimat på, \
 hvad det sparer jer — eller hvad det genererer i omsætning. Det kigger vi så på \
 sammen, og først derefter bygger vi det. Og først når det er bygget, betaler I: \

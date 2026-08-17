@@ -18,8 +18,9 @@
 ## Danish script (sole traders & company decision-makers)
 
 The spoken script is fixed and lives in `apps/web/lib/script.ts` (rendered in
-the dialer and on the lead page). The Art. 14 disclosure is step 2, right after
-the opener — say it before the pitch, every first call:
+the dialer and on the lead page). The Art. 14 disclosure is the first sentence
+of the pitch, right after the opener — highlighted in the app so it is never
+skipped:
 
 > **Åbning (ejer tager den):** "Hej, det er [navn]. Jeg ved godt det er pisse
 > irriterende at blive ringet op af en, man ikke har bedt om, men må jeg få 30
@@ -29,10 +30,11 @@ the opener — say it before the pitch, every first call:
 > ringer helt uopfordret — hvem er den rigtige at fange, når det handler om
 > hvordan I får hverdagen til at køre? … Er det [ejer]?"
 >
-> **Kilde (Art. 14):** "Jeg har fundet jer i **CVR-registeret** og undersøgt
-> lidt om, hvad I laver."
+> **Pitch, first sentence (Art. 14):** "Jeg har fundet jer i **CVR-registeret**
+> og kigget lidt på, hvad I laver. Det, vi gør, er at følge jeres virksomhed i
+> 30 dage …"
 >
-> Then the pitch. If they ask about their data or want to be left alone, add:
+> Then the rest of the pitch. If they ask about their data or want to be left alone, add:
 > "I kan læse vores privatlivspolitik på [link], og I kan til enhver tid bede os
 > om **ikke** at kontakte jer igen — så fjerner vi jer med det samme."
 
