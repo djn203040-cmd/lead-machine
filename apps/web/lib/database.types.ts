@@ -270,6 +270,7 @@ export type Database = {
           created_at: string
           cvr_number: string | null
           cvr_status: string | null
+          dial_priority: number
           discovered_url: string | null
           email: string | null
           employees_band: string | null
@@ -310,6 +311,7 @@ export type Database = {
           created_at?: string
           cvr_number?: string | null
           cvr_status?: string | null
+          dial_priority?: number
           discovered_url?: string | null
           email?: string | null
           employees_band?: string | null
@@ -348,6 +350,7 @@ export type Database = {
           created_at?: string
           cvr_number?: string | null
           cvr_status?: string | null
+          dial_priority?: number
           discovered_url?: string | null
           email?: string | null
           employees_band?: string | null

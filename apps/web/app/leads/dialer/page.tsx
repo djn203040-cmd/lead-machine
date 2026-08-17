@@ -77,7 +77,9 @@ export default async function DialerPage({
   const min = Number.parseInt(filters.minScore, 10);
   if (!Number.isNaN(min)) query = query.gte("score", min);
 
+  // Boosted batches (dial_priority > 0) ring first, then best score.
   const { data } = await query
+    .order("dial_priority", { ascending: false })
     .order("score", { ascending: false, nullsFirst: false })
     .limit(QUEUE_LIMIT)
     .returns<LeadRow[]>();
