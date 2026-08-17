@@ -61,6 +61,10 @@ const plain = (text: string): Segment => ({ text, kind: "plain" });
 
 // The Art. 14 source disclosure — "CVR-registeret" must be said out loud.
 const SOURCE = "Jeg har fundet jer i CVR-registeret og kigget lidt på, hvad I laver.";
+// Why them, why now — said right after the CVR line so the call has a reason
+// beyond "we found you". Keep the number true: we run 5 slots a quarter.
+const WHY =
+  "Jeg har 2 slots åbne og vil rigtig gerne have fundet et godt fit til dem — det er derfor jeg ringer.";
 const HOW =
   "Det, vi gør, er at følge jeres virksomhed i 30 dage — ikke fysisk, remote — og se helt konkret, hvor timerne og kronerne forsvinder. Derfra kigger vi på, hvad vi kan optimere i lige præcis de huller.";
 const RISK =
@@ -93,17 +97,17 @@ function savingsSegment(savings: SavingsView | null, variant: PitchVariant): Seg
 function buildPitch(savings: SavingsView | null, variant: PitchVariant): Segment[][] {
   const money = savingsSegment(savings, variant);
   if (variant === "a") {
-    // A: CVR (+ accounts + figure) is the reason for calling → how → risk → so.
+    // A: CVR (+ accounts + figure) → why → how → risk → so.
     const source: Segment = {
       kind: "source",
       // "…kigget lidt på, hvad I laver — også jeres offentlige regnskab…"
       text: money && savings?.basis === "accounts" ? SOURCE.replace(/\.$/, " —") : SOURCE,
     };
-    return [money ? [source, money] : [source], [plain(HOW)], [plain(RISK)], [plain(SO)]];
+    return [money ? [source, money] : [source], [plain(WHY)], [plain(HOW)], [plain(RISK)], [plain(SO)]];
   }
-  // C: CVR + how → risk + figure → so.
+  // C: CVR + why + how → risk + figure → so.
   return [
-    [{ kind: "source", text: SOURCE }, plain(HOW)],
+    [{ kind: "source", text: SOURCE }, plain(WHY), plain(HOW)],
     money ? [plain(RISK), money] : [plain(RISK)],
     [plain(SO)],
   ];
