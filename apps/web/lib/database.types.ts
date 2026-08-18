@@ -121,6 +121,38 @@ export type Database = {
           },
         ]
       }
+      lead_calls: {
+        Row: {
+          called_at: string
+          id: string
+          lead_id: string
+          outcome: string
+          user_id: string | null
+        }
+        Insert: {
+          called_at?: string
+          id?: string
+          lead_id: string
+          outcome: string
+          user_id?: string | null
+        }
+        Update: {
+          called_at?: string
+          id?: string
+          lead_id?: string
+          outcome?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_calls_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_enrichment: {
         Row: {
           contact: Json
@@ -190,6 +222,130 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_mail: {
+        Row: {
+          address_line: string | null
+          arm: string
+          batch_id: string | null
+          city: string | null
+          company_name: string
+          country: string
+          created_at: string
+          created_by: string | null
+          first_name: string | null
+          first_scanned_at: string | null
+          focus_text: string | null
+          followup_id: string | null
+          id: string
+          is_seed: boolean
+          landing_headline: string | null
+          landing_video_url: string | null
+          last_scanned_at: string | null
+          lead_id: string
+          letter_chars: number | null
+          letter_text: string | null
+          observation_approved_at: string | null
+          observation_approved_by: string | null
+          observation_text: string | null
+          opted_out_at: string | null
+          postal_code: string | null
+          recipient_name: string | null
+          reject_reason: string | null
+          scan_count: number
+          slug: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address_line?: string | null
+          arm: string
+          batch_id?: string | null
+          city?: string | null
+          company_name: string
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          first_name?: string | null
+          first_scanned_at?: string | null
+          focus_text?: string | null
+          followup_id?: string | null
+          id?: string
+          is_seed?: boolean
+          landing_headline?: string | null
+          landing_video_url?: string | null
+          last_scanned_at?: string | null
+          lead_id: string
+          letter_chars?: number | null
+          letter_text?: string | null
+          observation_approved_at?: string | null
+          observation_approved_by?: string | null
+          observation_text?: string | null
+          opted_out_at?: string | null
+          postal_code?: string | null
+          recipient_name?: string | null
+          reject_reason?: string | null
+          scan_count?: number
+          slug: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address_line?: string | null
+          arm?: string
+          batch_id?: string | null
+          city?: string | null
+          company_name?: string
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          first_name?: string | null
+          first_scanned_at?: string | null
+          focus_text?: string | null
+          followup_id?: string | null
+          id?: string
+          is_seed?: boolean
+          landing_headline?: string | null
+          landing_video_url?: string | null
+          last_scanned_at?: string | null
+          lead_id?: string
+          letter_chars?: number | null
+          letter_text?: string | null
+          observation_approved_at?: string | null
+          observation_approved_by?: string | null
+          observation_text?: string | null
+          opted_out_at?: string | null
+          postal_code?: string | null
+          recipient_name?: string | null
+          reject_reason?: string | null
+          scan_count?: number
+          slug?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_mail_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "mail_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_mail_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_mail_followup_id_fkey"
+            columns: ["followup_id"]
+            isOneToOne: false
+            referencedRelation: "lead_followups"
             referencedColumns: ["id"]
           },
         ]
@@ -388,6 +544,98 @@ export type Database = {
           },
         ]
       }
+      mail_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          followup_offset_days: number
+          id: string
+          name: string
+          notes: string | null
+          ordered_at: string | null
+          seed_included: boolean
+          seed_received_at: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+          vendor: string
+          vendor_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          followup_offset_days?: number
+          id?: string
+          name: string
+          notes?: string | null
+          ordered_at?: string | null
+          seed_included?: boolean
+          seed_received_at?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          vendor?: string
+          vendor_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          followup_offset_days?: number
+          id?: string
+          name?: string
+          notes?: string | null
+          ordered_at?: string | null
+          seed_included?: boolean
+          seed_received_at?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          vendor?: string
+          vendor_order_id?: string | null
+        }
+        Relationships: []
+      }
+      mail_scans: {
+        Row: {
+          device: string | null
+          id: string
+          ip_hash: string | null
+          mail_id: string
+          referrer: string | null
+          scanned_at: string
+          slug: string
+          user_agent: string | null
+        }
+        Insert: {
+          device?: string | null
+          id?: string
+          ip_hash?: string | null
+          mail_id: string
+          referrer?: string | null
+          scanned_at?: string
+          slug: string
+          user_agent?: string | null
+        }
+        Update: {
+          device?: string | null
+          id?: string
+          ip_hash?: string | null
+          mail_id?: string
+          referrer?: string | null
+          scanned_at?: string
+          slug?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_scans_mail_id_fkey"
+            columns: ["mail_id"]
+            isOneToOne: false
+            referencedRelation: "lead_mail"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scoring_criteria: {
         Row: {
           config: Json | null
@@ -462,7 +710,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      mail_landing: {
+        Args: { p_slug: string }
+        Returns: Json
+      }
+      mail_opt_out: {
+        Args: { p_slug: string }
+        Returns: boolean
+      }
+      mail_track_scan: {
+        Args: {
+          p_slug: string
+          p_user_agent?: string | null
+          p_referrer?: string | null
+          p_ip_hash?: string | null
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

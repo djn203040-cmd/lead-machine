@@ -4,10 +4,32 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { isPipelineStatus } from "@/lib/leadmeta";
+import { enqueueMail } from "@/lib/mail/enqueue";
 import { syncOutcomeToPm } from "@/lib/pm";
 
 // `warning` = outcome logged locally, but a side effect (PM sync) failed.
-type ActionResult = { error?: string; warning?: string };
+// `info` = a side effect worth telling the caller (e.g. a letter was queued).
+type ActionResult = { error?: string; warning?: string; info?: string };
+
+// Direct-mail arm triggers (see docs/DIRECT-MAIL.md): a "no answer" queues an
+// arm-A letter, a "not interested" queues arm B. Best-effort — the call outcome
+// is already logged; the letter still needs human review before it is sent.
+async function queueLetter(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  leadId: string,
+  arm: "A" | "B",
+  userId: string | null,
+): Promise<string | undefined> {
+  try {
+    const r = await enqueueMail(supabase, leadId, arm, userId);
+    if (r.status === "draft") return `Brev (arm ${arm}) lagt til gennemsyn`;
+    if (r.status === "rejected") return `Brev ikke muligt: ${r.reason}`;
+    if (r.status === "exists") return "Lead har allerede et brev i kø";
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // supabase-js 2.108's typed client infers insert/update params as `never` with
 // our generated types (same reason the list query uses `.returns<>()`). The
@@ -41,6 +63,11 @@ export async function logOutcome(
     .eq("id", leadId);
   if (error) return { error: error.message };
 
+  // Every dial attempt is a lead_calls row — the mail arms hang off these.
+  await supabase
+    .from("lead_calls")
+    .insert(({ lead_id: leadId, outcome: status, user_id: user?.id ?? null } satisfies TablesInsert<"lead_calls">) as never);
+
   const text = note?.trim();
   if (text) {
     const { error: noteErr } = await supabase
@@ -69,9 +96,39 @@ export async function logOutcome(
     }
   }
 
+  // "Ikke interesseret" → arm B letter (acknowledges the no, drops the pitch).
+  const info = status === "lost" ? await queueLetter(supabase, leadId, "B", user?.id ?? null) : undefined;
+
   revalidatePath("/leads/dialer");
   revalidatePath("/leads");
-  return warning ? { warning } : {};
+  revalidatePath("/leads/mail");
+  return { ...(warning ? { warning } : {}), ...(info ? { info } : {}) };
+}
+
+/**
+ * "Intet svar" — logs the attempt without moving pipeline_status (the lead
+ * stays in the ring list) and queues an arm-A letter for review.
+ */
+export async function logNoAnswer(leadId: string, note?: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from("lead_calls")
+    .insert(({ lead_id: leadId, outcome: "no_answer", user_id: user?.id ?? null } satisfies TablesInsert<"lead_calls">) as never);
+  if (error) return { error: error.message };
+
+  const text = note?.trim();
+  if (text) {
+    await supabase
+      .from("lead_notes")
+      .insert(({ lead_id: leadId, body: text, user_id: user?.id ?? null } satisfies TablesInsert<"lead_notes">) as never);
+  }
+  const info = await queueLetter(supabase, leadId, "A", user?.id ?? null);
+  revalidatePath("/leads/dialer");
+  revalidatePath("/leads/mail");
+  return info ? { info } : {};
 }
 
 export async function saveNote(leadId: string, body: string): Promise<ActionResult> {

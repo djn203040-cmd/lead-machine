@@ -21,7 +21,7 @@ import type { SavingsView } from "@/lib/savings";
 import { buildCallScript } from "@/lib/script";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import CallScriptCard from "../../_components/CallScriptCard";
-import { logOutcome, saveNote, scheduleFollowup } from "../actions";
+import { logNoAnswer, logOutcome, saveNote, scheduleFollowup } from "../actions";
 
 // What the AI still contributes per lead: private notes + tailored objections.
 // The spoken script itself is fixed — see lib/script.ts.
@@ -81,6 +81,7 @@ const OUTCOMES = [
 ] as const;
 
 const OUTCOME_BTN: Record<string, string> = {
+  amber: "border-amber-fg/25 bg-amber-bg text-amber-fg hover:border-amber-fg/50",
   cyan: "border-cyan-fg/25 bg-cyan-bg text-cyan-fg hover:border-cyan-fg/50",
   teal: "border-teal-fg/25 bg-teal-bg text-teal-fg hover:border-teal-fg/50",
   rose: "border-rose-fg/25 bg-rose-bg text-rose-fg hover:border-rose-fg/50",
@@ -194,6 +195,8 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   const [error, setError] = useState<string | null>(null);
   // Non-blocking: the outcome was logged, but a side effect (PM sync) failed.
   const [warning, setWarning] = useState<string | null>(null);
+  // Side-effect notice, e.g. "brev lagt til gennemsyn" (direct-mail arm).
+  const [info, setInfo] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const total = queue.length;
@@ -203,6 +206,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
     (dir: 1 | -1) => {
       setError(null);
       setWarning(null);
+      setInfo(null);
       setNote("");
       setDate("");
       setIndex((i) => Math.min(total - 1, Math.max(0, i + dir)));
@@ -211,14 +215,19 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   );
 
   const run = useCallback(
-    (action: () => Promise<{ error?: string; warning?: string }>, onOk?: () => void) => {
+    (
+      action: () => Promise<{ error?: string; warning?: string; info?: string }>,
+      onOk?: () => void,
+    ) => {
       setError(null);
       setWarning(null);
+      setInfo(null);
       startTransition(async () => {
         const res = await action();
         if (res.error) setError(res.error);
         else {
           if (res.warning) setWarning(res.warning);
+          if (res.info) setInfo(res.info);
           onOk?.();
         }
       });
@@ -245,6 +254,23 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
     },
     [lead, note, run, total],
   );
+
+  // "Intet svar": logs the attempt (lead stays in the ring list) and queues an
+  // arm-A handwritten letter for review, then moves on.
+  const recordNoAnswer = useCallback(() => {
+    if (!lead) return;
+    const leadId = lead.id;
+    const noteText = note;
+    run(
+      () => logNoAnswer(leadId, noteText),
+      () => {
+        setHandled((h) => ({ ...h, [leadId]: "Intet svar" }));
+        setNote("");
+        setDate("");
+        setIndex((i) => Math.min(total - 1, i + 1));
+      },
+    );
+  }, [lead, note, run, total]);
 
   // Handled-lead ids, for the ✓ badge on already-actioned leads.
   const handledRef = useMemo(() => new Set(Object.keys(handled)), [handled]);
@@ -568,6 +594,15 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
                 Registrér udfald
               </h2>
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={recordNoAnswer}
+                  title="Logger forsøget, lader leadet blive i ringelisten og lægger et håndskrevet brev (arm A) til gennemsyn."
+                  className={`col-span-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${OUTCOME_BTN.amber}`}
+                >
+                  Intet svar → brev
+                </button>
                 {OUTCOMES.map((o) => (
                   <button
                     key={o.status}
@@ -608,6 +643,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
 
               {error && <p className="mt-3 text-sm text-rose-fg">{error}</p>}
               {warning && <p className="mt-3 text-sm text-amber-fg">{warning}</p>}
+              {info && <p className="mt-3 text-sm text-teal-fg">{info}</p>}
             </section>
 
             <Link

@@ -33,6 +33,7 @@ import { savingsFromBreakdown } from "@/lib/savings";
 import { buildCallScript } from "@/lib/script";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import CallScriptCard from "../_components/CallScriptCard";
+import MailPanel, { type LeadMailView } from "../_components/MailPanel";
 import { PipelineBadge, ScoreChip, WebsiteNeedBadge } from "../_components/Badge";
 import PipelinePanel, {
   type FollowupView,
@@ -114,7 +115,7 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [leadRes, enrichRes, scoreRes, angleRes, notesRes, followupsRes] = await Promise.all([
+  const [leadRes, enrichRes, scoreRes, angleRes, notesRes, followupsRes, mailRes] = await Promise.all([
     supabase.from("leads").select("*").eq("id", id).maybeSingle(),
     supabase.from("lead_enrichment").select("*").eq("lead_id", id).maybeSingle(),
     supabase.from("lead_scores").select("*").eq("lead_id", id).maybeSingle(),
@@ -129,12 +130,20 @@ export default async function LeadDetailPage({
       .select("id, follow_up_date, reminder_sent")
       .eq("lead_id", id)
       .order("follow_up_date", { ascending: true }),
+    supabase
+      .from("lead_mail")
+      .select("id, arm, status, slug, scan_count, first_scanned_at, created_at, reject_reason")
+      .eq("lead_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   // supabase-js 2.108 infers these typed-client results as `never`; assert the
   // generated Row types (same reason the list query uses `.returns<>()`).
   const lead = leadRes.data as Tables<"leads"> | null;
   if (!lead) notFound();
+  const mail = (mailRes.data as LeadMailView) ?? null;
 
   const enrichment = enrichRes.data as Tables<"lead_enrichment"> | null;
   const scoreRow = scoreRes.data as Tables<"lead_scores"> | null;
@@ -512,6 +521,10 @@ export default async function LeadDetailPage({
             <p className="mt-3 text-xs text-faint">
               Telefon-først — Markedsføringsloven §10 forbyder kold B2B-email uden samtykke.
             </p>
+          </Section>
+
+          <Section title="Håndskrevet brev">
+            <MailPanel leadId={lead.id} mail={mail} />
           </Section>
 
           <Section title="Pipeline">

@@ -1,6 +1,18 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Public surfaces (no session): login/auth, the direct-mail landing pages
+// (/l/<slug>, its opt-out) and the root-level handwritten short URLs
+// (/<slug> → app/[slug]/route.ts, which 404s anything that isn't a letter).
+// Known app roots are excluded so /leads etc. still require a session.
+const APP_ROOTS = new Set(["leads", "login", "auth", "api", "l", "go"]);
+export function isPublicPath(pathname: string): boolean {
+  if (pathname.startsWith("/login") || pathname.startsWith("/auth")) return true;
+  if (pathname.startsWith("/l/")) return true;
+  const m = pathname.match(/^\/([a-z0-9]{2,32})\/?$/i);
+  return Boolean(m && !APP_ROOTS.has(m[1].toLowerCase()));
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -44,11 +56,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth")
-  ) {
+  if (!user && !isPublicPath(request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

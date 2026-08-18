@@ -27,3 +27,6 @@ CVR discovery ─► leads (dedup by CVR#) ─► website qualification ─► f
 - **`supabase/`** — schema + RLS; the worker writes via the service-role key,
   the web app reads/writes via the user session.
 - **Queue** — the `jobs` table; the worker polls it (kept simple for V1).
+- **Direct mail (`/leads/mail`)** — handwritten letters via Pensaki, triggered by
+  dialer outcomes; per-recipient tracked landing pages at `/<slug>` → `/l/<slug>`.
+  See [`DIRECT-MAIL.md`](DIRECT-MAIL.md).

@@ -33,6 +33,13 @@ provision the Robinson list, and run `leadmachine screen`.
 | `ROBINSON_LIST_PATH` | — | ✅ | no | path to the licensed Robinson file on the host, e.g. `/data/robinson.txt` |
 | `PM_SUPABASE_URL` | ✅ | — | no | Sonorous OS (PM system) project URL — `https://mrexjooigorziheilsla.supabase.co`; dialer-outcome sync no-ops if unset |
 | `PM_SUPABASE_SECRET_KEY` | ✅ | — | **yes** | secret/service key of the **PM** project (server-only env var — never `NEXT_PUBLIC`, never the Lead Machine key) |
+| `ANTHROPIC_API_KEY` | ✅ | — | **yes** | (web, since S27) "Foreslå observation" on the Breve page (`claude-opus-5`); the button reports a clear error if unset |
+| `MAIL_ROBINSON_PROVISIONED` | ✅ | — | no | `1` once the real Robinson list is on the worker — until then sole traders are rejected from the letter queue (`robinson_unscreened`) |
+| `MAIL_SCAN_WEBHOOK_URL` | ✅ | — | yes* | POST target for the "letter scanned" phone alert (ntfy topic / Slack webhook). No-op if unset |
+| `MAIL_SEED_NAME` / `_COMPANY` / `_STREET` / `_ZIP` / `_CITY` | ✅ | — | no | our own address — appended to the batch CSV as the seed letter that measures DE→DK transit |
+| `NEXT_PUBLIC_MAIL_PUBLIC_BASE` | ✅ | — | no | host written in the letters, default `sonorous.dk` — must resolve to this app (see `docs/DIRECT-MAIL.md` → domain) |
+| `NEXT_PUBLIC_MAIL_SENDER_NAME` | ✅ | — | no | sign-off first name, default `Daniel` |
+| `NEXT_PUBLIC_MAIL_BOOKING_URL` / `_CONTACT_PHONE` / `_CONTACT_EMAIL` | ✅ | — | no | the landing page CTA(s); at least one should be set |
 
 `*` not secret but treat as private. **Never** put `SUPABASE_SERVICE_ROLE_KEY`
 in the web app — the browser must only see the anon key.
