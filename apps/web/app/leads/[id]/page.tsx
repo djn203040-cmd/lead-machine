@@ -172,6 +172,7 @@ export default async function LeadDetailPage({
       ? "mobile"
       : (phoneClasses.find((c) => c !== null) ?? null),
     savings,
+    brancheLabel: lead.branche_text ?? groupLabel(lead.branchekode),
   });
 
   return (

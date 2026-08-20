@@ -30,9 +30,9 @@ skipped:
 > ringer helt uopfordret — hvem er den rigtige at fange, når det handler om
 > hvordan I får hverdagen til at køre? … Er det [ejer]?"
 >
-> **Pitch, first sentence (Art. 14):** "Jeg har fundet jer i **CVR-registeret**
-> og kigget lidt på, hvad I laver. Det, vi gør, er at følge jeres virksomhed i
-> 30 dage …"
+> **Pitch, first sentence (Art. 14):** "Jeg har fundet jer i **CVR-registeret**,
+> og jeg tror, I kunne være et rigtig godt fit til en af de 2 pladser, vi har
+> åbne lige nu …"
 >
 > Then the rest of the pitch. If they ask about their data or want to be left alone, add:
 > "I kan læse vores privatlivspolitik på [link], og I kan til enhver tid bede os

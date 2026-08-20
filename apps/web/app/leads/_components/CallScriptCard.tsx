@@ -107,14 +107,21 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
             <Paragraph key={i} segments={para} />
           ))}
         </blockquote>
+        <Line>«{script.objectionCheck}»</Line>
         <p className="text-xs text-faint">
           <span className="rounded bg-amber-bg px-1 text-amber-fg">gul</span> = kilde (skal
           siges) ·{" "}
-          <span className="rounded bg-brand-100 px-1 text-brand-800">blå</span> ={" "}
-          {script.savingsLine
-            ? "besparelsen — skifter pr. lead"
-            : "besparelsen — udeladt, dette lead har intet tal"}
+          <span className="rounded bg-brand-100 px-1 text-brand-800">blå</span> = besparelsen —
+          skifter pr. lead (240–400k som standard)
         </p>
+        <p className="text-xs text-faint">Mens tallet synker ind — vælg ÉN, ikke alle:</p>
+        {script.jokes.map((j) => (
+          <Line key={j} muted>
+            «{j}»
+          </Line>
+        ))}
+        <Line>«{script.how}»</Line>
+        <Line>«{script.bridge}»</Line>
       </Step>
 
       <Step n="3" label="Smerte" hint="stil spørgsmålet — og ti stille">
@@ -125,6 +132,12 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
 
       <Step n="4" label="Book mødet">
         <Line>«{script.booking}»</Line>
+      </Step>
+
+      <Step n="5" label="Sørg for de dukker op" hint="når tiden er aftalt">
+        <Line>«{script.showUp.ask}»</Line>
+        <p className="text-xs text-faint">PS, lige inden du lægger på:</p>
+        <Line>«{script.showUp.ps}»</Line>
       </Step>
 
       <Step n="?" label="«Hvad koster det?»" hint="20 % af ét års besparelse, betalt én gang">

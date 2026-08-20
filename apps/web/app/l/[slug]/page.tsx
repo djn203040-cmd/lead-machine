@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { groupForCode } from "@/lib/branchekoder";
 import { type LandingPayload, SLUG_RE, embedUrl, publicClient } from "@/lib/mail/public";
-import { SENDER_COMPANY, SENDER_NAME } from "@/lib/mail/letter";
+import { SENDER_COMPANY, SENDER_EMAIL, SENDER_NAME, SENDER_PHONE } from "@/lib/mail/letter";
 
 export const dynamic = "force-dynamic";
 
@@ -78,8 +78,9 @@ export default async function LandingPage({
   const sector = SECTOR_DA[groupForCode(p.branchekode) ?? ""] ?? SECTOR_FALLBACK;
   const video = embedUrl(p.landing_video_url);
   const bookingUrl = process.env.NEXT_PUBLIC_MAIL_BOOKING_URL;
-  const phone = process.env.NEXT_PUBLIC_MAIL_CONTACT_PHONE;
-  const email = process.env.NEXT_PUBLIC_MAIL_CONTACT_EMAIL;
+  // Same contact details as the letter itself (env-overridable defaults).
+  const phone = SENDER_PHONE;
+  const email = SENDER_EMAIL;
   const headline =
     p.landing_headline ??
     (p.arm === "B"
@@ -155,9 +156,6 @@ export default async function LandingPage({
             <a href={`mailto:${email}?subject=${encodeURIComponent(p.company_name)}`} className="btn border border-white/40 text-white hover:bg-white/10">
               Skriv en mail
             </a>
-          )}
-          {!bookingUrl && !phone && !email && (
-            <span className="text-sm text-white/80">Kontaktoplysninger mangler (sæt NEXT_PUBLIC_MAIL_BOOKING_URL / _CONTACT_PHONE / _CONTACT_EMAIL).</span>
           )}
         </div>
         <p className="mt-3 text-xs text-white/70">— {SENDER_NAME}, {SENDER_COMPANY}</p>

@@ -55,6 +55,9 @@ export const MAX_ADDRESS_CHARS = 200;
 
 export const SENDER_NAME = process.env.NEXT_PUBLIC_MAIL_SENDER_NAME || "Daniel";
 export const SENDER_COMPANY = "Sonorous Digital";
+/** Direct contact lines in the letter + landing CTA. Env overrides the default. */
+export const SENDER_PHONE = process.env.NEXT_PUBLIC_MAIL_CONTACT_PHONE || "30 58 79 79";
+export const SENDER_EMAIL = process.env.NEXT_PUBLIC_MAIL_CONTACT_EMAIL || "djn203040@gmail.com";
 
 /**
  * The public host the letter carries in handwriting. Keep it short — it is
@@ -136,8 +139,11 @@ export type LetterInput = {
 export type Letter = { text: string; chars: number; ok: boolean; missing: string[] };
 
 const OPENERS: Record<MailArm, (i: LetterInput) => string> = {
-  // No timestamp — the letter lands ~2 weeks after the call.
-  A: () => "Jeg forsøgte at fange dig på telefonen — det er nemmere bare at skrive.",
+  // No timestamp — the letter lands ~2 weeks after the call. The "letter
+  // instead of another boring email" line is folded into A's opener; B and C
+  // get it as its own short line (see buildLetter).
+  A: () =>
+    "Jeg forsøgte at fange dig på telefonen — og i stedet for endnu en kedelig mail får du et brev, der skiller sig ud i bunken.",
   // Acknowledge the no first, drop the pitch.
   B: (i) =>
     `Vi talte kort sammen, og det var ikke relevant lige nu. Helt fair. Jeg havde alligevel kigget på ${i.focus ?? "jeres hverdag"}, så du får det jeg fandt — brug det som du vil.`,
@@ -161,25 +167,31 @@ export function buildLetter(i: LetterInput): Letter {
 
   const paras: string[] = [hello, opener];
 
+  // "A letter instead of another boring email" — arm A has it in the opener.
+  const STAND_OUT = "Du får et brev i stedet for endnu en kedelig mail — det skiller sig ud i bunken.";
+
   if (i.arm === "A") {
     // Arm A carries the observation in the second paragraph, since the opener
-    // is spent on the call reference.
+    // is spent on the call reference + the stand-out line.
     paras.push(
-      `Jeg blev hængende ved ${i.observation ?? "[konkret observation]"}. Jeg bygger små automatiseringer for danske virksomheder — typisk noget der fjerner 5–10 timers manuelt arbejde om ugen. Da jeg kiggede på ${focus}, kunne jeg se to steder hvor det ville kunne lade sig gøre.`,
+      `Jeg blev hængende ved ${i.observation ?? "[konkret observation]"}. Jeg bygger små automatiseringer — typisk noget der fjerner 5–10 timers manuelt arbejde om ugen. Da jeg kiggede på ${focus}, kunne jeg se to steder hvor det ville kunne lade sig gøre.`,
     );
   } else if (i.arm === "C") {
+    paras.push(STAND_OUT);
     paras.push(
-      `Jeg bygger små automatiseringer for danske virksomheder — typisk noget der fjerner 5–10 timers manuelt arbejde om ugen. Da jeg kiggede på ${focus}, kunne jeg se to steder hvor det ville kunne lade sig gøre.`,
+      `Jeg bygger små automatiseringer — typisk noget der fjerner 5–10 timers manuelt arbejde om ugen. Da jeg kiggede på ${focus}, kunne jeg se to steder hvor det ville kunne lade sig gøre.`,
     );
   } else {
     // Arm B — no pitch; the value is the finding itself.
+    paras.push(STAND_OUT);
     paras.push(
       `Det er to steder hvor der ligger 5–10 timers manuelt arbejde om ugen, som kunne køre af sig selv.`,
     );
   }
 
   paras.push(`Jeg har samlet det her: ${publicUrl(i.slug)}`);
-  paras.push("Ingen tilmelding. Bare en side jeg har lavet til jer.");
+  paras.push("Ingen tilmelding — bare en side lavet til jer.");
+  paras.push(`Spørgsmål? Fang mig direkte på ${SENDER_PHONE} eller ${SENDER_EMAIL}.`);
   paras.push(`${SENDER_NAME}, ${SENDER_COMPANY}`);
 
   const text = paras.join("\n\n");

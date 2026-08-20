@@ -349,6 +349,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
       ? "mobile"
       : (phoneClasses.find((c) => c !== null) ?? null),
     savings: lead.savings,
+    brancheLabel: lead.branche_text ?? groupLabel(lead.branchekode),
   });
 
   return (
