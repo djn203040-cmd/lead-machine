@@ -5,16 +5,16 @@
 // The AI still supplies the private notes and lead-specific objections,
 // never the script.
 //
-// v2 (Session 28): pitch restructured per the user's draft — CVR + "2 slots"
-// + the savings band up front, "ville du have noget imod det?", a bank of
-// optional one-liner jokes, then the 30-day explanation, pain, booking, and
-// a new "make sure they show up" step (earthquake/tsunami line + the PS about
-// the 2 things ready for them). The old A/C variant switch is gone — there is
-// one pitch now.
+// v3 (Session 29): the user's final wording, verbatim (spelling normalised).
+// Pitch = CVR + "1 af de 2 pladser" + the band; then a SPLIT-TEST bank of
+// seven follow-up questions (pick one per call, rotate to see what lands);
+// the 30-days explanation; pain; booking; show-up lock; PS. The band is the
+// lead's own calculated amount — 240.000–400.000 is only the fallback when
+// the lead has no figure.
 //
-// The Art. 14 source line ("fundet jer i CVR-registeret") is woven into the
-// first sentence of the pitch on purpose — it has to be said on the first
-// call. See docs/compliance/first-contact-script.md.
+// The Art. 14 source line ("fundet dig i CVR-registret") is the first thing
+// said in the pitch on purpose — it has to be said on the first call. See
+// docs/compliance/first-contact-script.md.
 
 import type { PhoneType } from "./phone";
 import type { SavingsView } from "./savings";
@@ -31,16 +31,14 @@ export type CallScript = {
   /** Staff/reception picks up (landline / 70-number) — get to the owner first. */
   openerGatekeeper: string;
   /**
-   * The pitch: CVR line (the Art. 14 disclosure) + the 2 open slots + the
-   * savings band, as one spoken flow.
+   * The pitch as one spoken paragraph: the CVR line (Art. 14), the 2 open
+   * slots, and the lead's savings band.
    */
   pitch: Segment[][];
   /** The savings sentence in the pitch — always present (default band if no data). */
   savingsLine: string;
-  /** "Ville du have noget imod det?" — said right after the band. */
-  objectionCheck: string;
-  /** Optional one-liners while they digest the number. Pick ONE, not all. */
-  jokes: string[];
+  /** Split-test bank: SEVEN follow-ups — pick ONE per call, rotate. */
+  splitTest: string[];
   /** The 30-day explanation, then the bridge into the pain question. */
   how: string;
   bridge: string;
@@ -59,7 +57,7 @@ const NUM = new Intl.NumberFormat("da-DK", { maximumFractionDigits: 0 });
 const spoken = (n: number) => NUM.format(n);
 const plain = (text: string): Segment => ({ text, kind: "plain" });
 
-// Default band when the lead has no savings figure of its own.
+// Fallback band when the lead has no calculated savings figure of its own.
 const DEFAULT_LOW = 240_000;
 const DEFAULT_HIGH = 400_000;
 
@@ -68,22 +66,6 @@ function spokenBranche(label: string | null): string {
   const t = label?.trim();
   if (!t) return "virksomheder som jeres";
   return t.charAt(0).toLowerCase() + t.slice(1);
-}
-
-// The savings sentence: the lead's own band when we have one (their filed
-// accounts may be quoted back to them), else the default 240–400k band.
-function savingsSegment(savings: SavingsView | null, branche: string | null): Segment {
-  const low = savings?.annualLow ?? DEFAULT_LOW;
-  const high = savings?.annualHigh ?? DEFAULT_HIGH;
-  const band = `${spoken(low)} til ${spoken(high)} kroner om året`;
-  const base = `For det, vi gør, er at spare ${spokenBranche(branche)} for rigtig mange penge — realistisk set ville I se mellem ${band}.`;
-  return {
-    kind: "savings",
-    text:
-      savings?.basis === "accounts"
-        ? `${base} Og det siger jeg ud fra jeres eget offentlige regnskab.`
-        : base,
-  };
 }
 
 export function buildCallScript(opts: {
@@ -95,7 +77,14 @@ export function buildCallScript(opts: {
 }): CallScript {
   const { firstName, phoneType, savings, brancheLabel = null } = opts;
   const owner = firstName ?? "ejeren";
-  const money = savingsSegment(savings, brancheLabel);
+  const name = firstName ?? "[navn]";
+  // The band is the lead's own calculated amount; 240–400k only as fallback.
+  const low = savings?.annualLow ?? DEFAULT_LOW;
+  const high = savings?.annualHigh ?? DEFAULT_HIGH;
+  const money: Segment = {
+    kind: "savings",
+    text: `Det, vi gør, er helt simpelt: vi sparer ${spokenBranche(brancheLabel)} en masse penge. Realistisk set, for dig, ville det være mellem ${spoken(low)} og ${spoken(high)} kroner årligt.`,
+  };
   return {
     audience: phoneType === "mobile" || phoneType === null ? "owner" : "gatekeeper",
     openerOwner:
@@ -103,31 +92,31 @@ export function buildCallScript(opts: {
     openerGatekeeper: `Hej, det er [dit navn]. Jeg ved godt jeg ringer helt uopfordret — hvem er den rigtige at fange, når det handler om hvordan I får hverdagen til at køre? … Er det ${owner}?`,
     pitch: [
       [
-        // Art. 14: the CVR source, said in the first sentence.
-        {
-          kind: "source",
-          text: "Jeg har fundet jer i CVR-registeret,",
-        },
-        plain("og jeg tror, I kunne være et rigtig godt fit til en af de 2 pladser, vi har åbne lige nu."),
+        // Art. 14: the CVR source, said first.
+        { kind: "source", text: "Jeg har fundet dig i CVR-registret," },
+        plain(
+          "og jeg tror, du vil kunne være et godt fit til 1 af de 2 pladser, vi har åbne lige nu.",
+        ),
+        money,
       ],
-      [money],
     ],
     savingsLine: money.text,
-    objectionCheck: "Ville du have noget imod det?",
-    // One-liners while the number sinks in — pick ONE that fits the mood.
-    jokes: [
-      "Ville du smadre din telefon, hvis jeg fortalte dig, hvordan vi gør det?",
-      "Kan du lide penge?",
-      "Hader du penge?",
-      "Er det ikke det bedste, du har hørt hele ugen, haha?",
-      "Men lov mig, du ikke bruger det hele på whisky?",
-      "Og sig det ikke til din bedre halvdel — så bliver det bare til en ny bil, haha.",
+    // Split-test — pick ONE per call and rotate; note in the call log what landed.
+    splitTest: [
+      "Ville du have noget imod at spare de penge?",
+      "Ville du smadre din telefon i jorden, hvis jeg fortalte, hvordan vi gør det?",
+      `Såå, kan du lide penge — eller er ${spoken(low)} eller mere uinteressant for dig?`,
+      "Såå, hader du penge, eller lyder det spændende?",
+      "Er det ikke den bedste nyhed, du har hørt hele ugen, haha?",
+      "Men du skal love, at du ikke bruger de penge, vi sparer, på [noget researchet til præcis den her person — deres hobby, bil, klub …]",
+      "Men fortæl ikke din hustru, at du sparer de penge — så vil hun have ny bil og alt muligt.",
     ],
-    how: "Det, vi gør, er at følge jeres virksomhed i 30 dage — ikke fysisk, remote — og se præcis, hvor penge og tid forsvinder. Derfra kigger vi på, hvad vi kan gøre for at stoppe det.",
-    bridge: "Så med det sagt:",
+    how: "Så det, vi gør, er, at vi følger jeres virksomhed i 30 dage — ikke fysisk, men remote selvfølgelig — og der ser vi præcis, hvor pengene og tiden render hen. Derfra kigger vi på, hvordan vi kan sætte en stopper for det.",
+    bridge: "Så med det sagt,",
     pain: {
-      ask: "Hvad bruger du en masse tid på, som du godt ved ikke er værdifuld tid for DIG?",
-      followup: "Og hvis du fik bare halvdelen af det tilbage — hvad ville du så bruge det på?",
+      ask: "Hvad bruger du mest tid på lige nu, som du VED ikke er din tid værd?",
+      followup:
+        "Og hvad hvis du fik bare halvdelen af den tid og de penge tilbage — hvad ville du så bruge dem på?",
     },
     price: {
       long: "Det er 100 % gratis at kigge. Finder vi noget, laver vi et estimat på, hvad det sparer jer — eller hvad det genererer i omsætning. Det kigger vi så på sammen, og først derefter bygger vi det. Og først når det er bygget, betaler I: 20 % af det, vi rent faktisk har sparet jer i tid eller skabt i omsætning på et år — og det betaler I én gang. Derefter er besparelsen jeres.",
@@ -140,8 +129,8 @@ export function buildCallScript(opts: {
     booking:
       "Skal vi ikke tage ti minutter, hvor jeg spørger ind til, hvordan I kører det i dag? Passer det bedst i morgen formiddag eller til eftermiddag?",
     showUp: {
-      ask: "Ud over et jordskælv eller en tsunami — er der så nogen grund til, at du ikke skulle dukke op?",
-      ps: "Nå, for resten — når du dukker op [dag], har jeg faktisk 2 ting klar til dig, som sparer dig tid lige efter mødet.",
+      ask: `Så ${name} — ud over en tsunami eller ét jordskælv, ville der være noget som helst, der kunne forhindre dig i at møde op i morgen?`,
+      ps: "Oh, og imens jeg lige husker det — når du møder op [mødedag], har jeg faktisk allerede 2 ting klar til dig, som jeg ved vil spare dig penge og tid allerede 5 minutter efter mødet.",
     },
   };
 }

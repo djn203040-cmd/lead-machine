@@ -107,15 +107,16 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
             <Paragraph key={i} segments={para} />
           ))}
         </blockquote>
-        <Line>«{script.objectionCheck}»</Line>
         <p className="text-xs text-faint">
           <span className="rounded bg-amber-bg px-1 text-amber-fg">gul</span> = kilde (skal
           siges) ·{" "}
           <span className="rounded bg-brand-100 px-1 text-brand-800">blå</span> = besparelsen —
-          skifter pr. lead (240–400k som standard)
+          beregnet pr. lead (240–400k når leadet intet tal har)
         </p>
-        <p className="text-xs text-faint">Mens tallet synker ind — vælg ÉN, ikke alle:</p>
-        {script.jokes.map((j) => (
+        <p className="text-xs text-faint">
+          Split-test — vælg ÉT spørgsmål pr. opkald, rotér og notér hvad der lander:
+        </p>
+        {script.splitTest.map((j) => (
           <Line key={j} muted>
             «{j}»
           </Line>
