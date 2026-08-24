@@ -352,6 +352,156 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
     brancheLabel: lead.branche_text ?? groupLabel(lead.branchekode),
   });
 
+  // Shared panels — rendered high up on mobile (call → script → outcome) and in
+  // the sticky right column on desktop. Same state either way; only one copy is
+  // visible at a time.
+  const callPanel = (
+    <section className="card card-pad">
+      <h2 className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-faint">
+        Ring nu
+        <span className="chip chip-neutral normal-case">{currentStatus}</span>
+      </h2>
+      {lead.phone.length > 0 ? (
+        <div className="space-y-2">
+          {lead.phone.map((p) => {
+            const meta = phoneTypeMeta(classifyPhone(p));
+            return (
+              <div key={p}>
+                <a
+                  href={telHref(p)}
+                  className="flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-b from-brand-700 to-brand px-4 py-3.5 text-2xl font-semibold tabular-nums tracking-tight text-white shadow-[var(--shadow-card)] transition-transform hover:-translate-y-0.5"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path
+                      d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.24 1z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  {p}
+                </a>
+                {meta && (
+                  <p className="mt-1.5 text-center">
+                    <span className={`chip ${meta.className} text-[0.7rem]`} title={meta.hint}>
+                      {meta.label}
+                    </span>
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          {gatekeeperMeta && (
+            <p className="rounded-lg border border-amber-fg/25 bg-amber-bg px-3 py-2 text-xs text-amber-fg">
+              {gatekeeperMeta.hint}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-faint">Intet telefonnummer</p>
+      )}
+      {lead.website && (
+        <a
+          href={lead.website}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 block break-all text-sm text-brand-700 hover:underline"
+        >
+          {lead.website}
+        </a>
+      )}
+      {lead.email && <p className="mt-1 break-all text-sm text-muted">{lead.email}</p>}
+      <p className="mt-3 text-xs text-faint">
+        Telefon-først — Markedsføringsloven §10 forbyder kold B2B-email uden samtykke.
+      </p>
+    </section>
+  );
+
+  const outcomePanel = (
+    <section className="card card-pad">
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-faint">
+        Note fra samtalen
+      </h2>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Hvad blev sagt?"
+        rows={2}
+        className="textarea"
+      />
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          disabled={pending || !note.trim()}
+          onClick={() => run(() => saveNote(lead.id, note), () => setNote(""))}
+          className="btn btn-secondary"
+        >
+          Gem note
+        </button>
+      </div>
+
+      <h2 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-faint">
+        Registrér udfald
+      </h2>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={recordNoAnswer}
+          title="Logger forsøget, lader leadet blive i ringelisten og lægger et håndskrevet brev (arm A) til gennemsyn."
+          className={`col-span-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${OUTCOME_BTN.amber}`}
+        >
+          Intet svar → brev
+        </button>
+        {OUTCOMES.map((o) => (
+          <button
+            key={o.status}
+            type="button"
+            disabled={pending}
+            onClick={() => recordOutcome(o.status, o.label)}
+            className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${OUTCOME_BTN[o.tone]}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-faint">
+        Gemmer noten (hvis udfyldt) og går videre til næste lead.
+      </p>
+
+      <h2 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-faint">
+        Planlæg opfølgning
+      </h2>
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="input"
+        />
+        <button
+          type="button"
+          disabled={pending || !date}
+          onClick={() => run(() => scheduleFollowup(lead.id, date), () => setDate(""))}
+          className="btn btn-primary"
+        >
+          Tilføj
+        </button>
+      </div>
+
+      {error && <p className="mt-3 text-sm text-rose-fg">{error}</p>}
+      {warning && <p className="mt-3 text-sm text-amber-fg">{warning}</p>}
+      {info && <p className="mt-3 text-sm text-teal-fg">{info}</p>}
+    </section>
+  );
+
+  const profileLink = (
+    <Link
+      href={`/leads/${lead.id}`}
+      className="block text-center text-sm text-muted transition-colors hover:text-brand-700"
+    >
+      Åbn fuld lead-profil →
+    </Link>
+  );
+
   return (
     <div>
       {/* Progress + navigation */}
@@ -413,9 +563,15 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
             {employeesLabel(lead.employees_band, lead.employees_exact)} ansatte
           </p>
 
+          {/* Mobile: the call button belongs right under the company header. */}
+          <div className="lg:hidden">{callPanel}</div>
+
           {lead.savings && <SavingsPanel savings={lead.savings} />}
 
           <CallScriptCard script={script} />
+
+          {/* Mobile: log the outcome right after the script, before the deep-dive data. */}
+          <div className="lg:hidden">{outcomePanel}</div>
 
           {angle && (
             <section className="card card-pad">
@@ -502,157 +658,18 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
               </ul>
             </section>
           )}
+
+          {/* Mobile: profile link closes the page (desktop shows it in the right rail). */}
+          <div className="lg:hidden">{profileLink}</div>
         </div>
 
-        {/* Right: the call panel (sticky) */}
-        <div className="space-y-6">
+        {/* Right: the call panel (sticky, desktop only — mobile renders the same
+            panels inline above) */}
+        <div className="hidden space-y-6 lg:block">
           <div className="lg:sticky lg:top-24 space-y-6">
-            <section className="card card-pad">
-              <h2 className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-faint">
-                Ring nu
-                <span className="chip chip-neutral normal-case">{currentStatus}</span>
-              </h2>
-              {lead.phone.length > 0 ? (
-                <div className="space-y-2">
-                  {lead.phone.map((p) => {
-                    const meta = phoneTypeMeta(classifyPhone(p));
-                    return (
-                      <div key={p}>
-                        <a
-                          href={telHref(p)}
-                          className="flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-b from-brand-700 to-brand px-4 py-3.5 text-2xl font-semibold tabular-nums tracking-tight text-white shadow-[var(--shadow-card)] transition-transform hover:-translate-y-0.5"
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-                            <path
-                              d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.24 1z"
-                              fill="currentColor"
-                            />
-                          </svg>
-                          {p}
-                        </a>
-                        {meta && (
-                          <p className="mt-1.5 text-center">
-                            <span className={`chip ${meta.className} text-[0.7rem]`} title={meta.hint}>
-                              {meta.label}
-                            </span>
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {gatekeeperMeta && (
-                    <p className="rounded-lg border border-amber-fg/25 bg-amber-bg px-3 py-2 text-xs text-amber-fg">
-                      {gatekeeperMeta.hint}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-faint">Intet telefonnummer</p>
-              )}
-              {lead.website && (
-                <a
-                  href={lead.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 block break-all text-sm text-brand-700 hover:underline"
-                >
-                  {lead.website}
-                </a>
-              )}
-              {lead.email && (
-                <p className="mt-1 break-all text-sm text-muted">{lead.email}</p>
-              )}
-              <p className="mt-3 text-xs text-faint">
-                Telefon-først — Markedsføringsloven §10 forbyder kold B2B-email uden samtykke.
-              </p>
-            </section>
-
-            <section className="card card-pad">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-faint">
-                Note fra samtalen
-              </h2>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Hvad blev sagt?"
-                rows={2}
-                className="textarea"
-              />
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  disabled={pending || !note.trim()}
-                  onClick={() =>
-                    run(() => saveNote(lead.id, note), () => setNote(""))
-                  }
-                  className="btn btn-secondary"
-                >
-                  Gem note
-                </button>
-              </div>
-
-              <h2 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-faint">
-                Registrér udfald
-              </h2>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={recordNoAnswer}
-                  title="Logger forsøget, lader leadet blive i ringelisten og lægger et håndskrevet brev (arm A) til gennemsyn."
-                  className={`col-span-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${OUTCOME_BTN.amber}`}
-                >
-                  Intet svar → brev
-                </button>
-                {OUTCOMES.map((o) => (
-                  <button
-                    key={o.status}
-                    type="button"
-                    disabled={pending}
-                    onClick={() => recordOutcome(o.status, o.label)}
-                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${OUTCOME_BTN[o.tone]}`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-faint">
-                Gemmer noten (hvis udfyldt) og går videre til næste lead.
-              </p>
-
-              <h2 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-faint">
-                Planlæg opfølgning
-              </h2>
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="input"
-                />
-                <button
-                  type="button"
-                  disabled={pending || !date}
-                  onClick={() =>
-                    run(() => scheduleFollowup(lead.id, date), () => setDate(""))
-                  }
-                  className="btn btn-primary"
-                >
-                  Tilføj
-                </button>
-              </div>
-
-              {error && <p className="mt-3 text-sm text-rose-fg">{error}</p>}
-              {warning && <p className="mt-3 text-sm text-amber-fg">{warning}</p>}
-              {info && <p className="mt-3 text-sm text-teal-fg">{info}</p>}
-            </section>
-
-            <Link
-              href={`/leads/${lead.id}`}
-              className="block text-center text-sm text-muted transition-colors hover:text-brand-700"
-            >
-              Åbn fuld lead-profil →
-            </Link>
+            {callPanel}
+            {outcomePanel}
+            {profileLink}
           </div>
         </div>
       </div>

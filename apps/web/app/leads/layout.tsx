@@ -30,7 +30,7 @@ export default async function LeadsLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-line/80 bg-canvas/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/leads" className="flex items-center gap-2.5">
             <LogoMark />
             <span className="text-[1.05rem] font-semibold tracking-tight text-ink">
@@ -40,7 +40,8 @@ export default async function LeadsLayout({ children }: { children: React.ReactN
           <NavTabs />
           <div className="flex items-center gap-3">
             <Link href="/leads/new" className="btn btn-primary">
-              <span className="text-base leading-none">+</span> Find virksomheder
+              <span className="text-base leading-none">+</span>
+              <span className="hidden sm:inline">Find virksomheder</span>
             </Link>
             <div className="hidden items-center gap-2 rounded-full border border-line bg-card py-1 pl-1 pr-3 sm:flex">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800">
@@ -51,8 +52,11 @@ export default async function LeadsLayout({ children }: { children: React.ReactN
             <SignOutButton />
           </div>
         </div>
+        <div className="mx-auto max-w-6xl px-4 pb-2 sm:px-6 md:hidden">
+          <NavTabs mobile />
+        </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   );
 }
