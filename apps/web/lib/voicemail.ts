@@ -6,9 +6,11 @@
 // number first, then "30 dage på at kigge med" and pay-when-it-works — same
 // voice, so a callback lands in a familiar pitch. One micro-commitment stays:
 // reply "JA" by SMS. The prospect's SMS is their own henvendelse, so the
-// callback (and a reply) is fine under Markedsføringsloven §10; the full
-// Art. 14 notice is delivered on the callback, the voicemail only names the
-// CVR source.
+// callback (and a reply) is fine under Markedsføringsloven §10.
+//
+// The CVR mention was removed from the voicemail (user decision, Session 28)
+// — the Art. 14 source disclosure is now delivered entirely on the callback
+// via the script's sourceLine ("inden du lægger på"), so ALWAYS say it there.
 
 import { type BranchekodeGroup, groupForCode } from "./branchekoder";
 import type { DecisionMaker } from "./enrichment";
@@ -61,7 +63,7 @@ export function buildVoicemail(opts: {
   const hook = (group && HOOK_DA[group]) || HOOK_FALLBACK;
   return [
     firstName ? `Hej ${firstName}, det er [dit navn].` : "Hej, det er [dit navn].",
-    `Jeg prøvede lige at ringe — jeg fandt ${companyName} via CVR-registeret. Jeg har selv en virksomhed, og jeg tror, jeg kan spare din for mellem ${spoken(band.low)} og ${spoken(band.high)} kroner om året — typisk ved ${hook}. Jeg skal bare bruge 30 dage på at kigge med først, og du betaler først, når vi har vist, at det virker.`,
+    `Jeg prøvede lige at ringe til dig. Jeg har selv en virksomhed, og jeg tror, jeg kan spare ${companyName} for mellem ${spoken(band.low)} og ${spoken(band.high)} kroner om året — ved ${hook}, så tiden går til det, du faktisk tjener penge på. Jeg skal bare bruge 30 dage på at kigge med først, og du betaler først, når vi har vist, at det virker.`,
     'Jeg sidder ikke så meget ved telefonen, så det nemmeste er, hvis du bare sender en SMS med et "JA" til det her nummer — så ringer jeg tilbage.',
     firstName ? `Rigtig god dag, ${firstName}.` : "Rigtig god dag.",
   ].join("\n\n");
