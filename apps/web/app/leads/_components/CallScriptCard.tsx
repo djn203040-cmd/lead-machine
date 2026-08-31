@@ -38,16 +38,17 @@ const SEGMENT_CLASS: Record<Segment["kind"], string> = {
   savings: "rounded bg-brand-100 px-1 text-brand-800",
 };
 
-function Paragraph({ segments }: { segments: Segment[] }) {
+function Paragraph({ segments, inline }: { segments: Segment[]; inline?: boolean }) {
+  const Tag = inline ? "span" : "p";
   return (
-    <p>
+    <Tag>
       {segments.map((seg, i) => (
         <span key={i} className={SEGMENT_CLASS[seg.kind]}>
           {i > 0 ? " " : ""}
           {seg.text}
         </span>
       ))}
-    </p>
+    </Tag>
   );
 }
 
@@ -90,27 +91,31 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
           <>
             <Line>«{script.openerGatekeeper}»</Line>
             <p className="text-xs text-faint">Når du har ejeren:</p>
-            <Line muted>«{script.openerOwner}»</Line>
+            <Line muted>
+              «<Paragraph segments={script.openerOwner} inline />»
+            </Line>
           </>
         ) : (
           <>
-            <Line>«{script.openerOwner}»</Line>
+            <Line>
+              «<Paragraph segments={script.openerOwner} inline />»
+            </Line>
             <p className="text-xs text-faint">Hvis en medarbejder tager den:</p>
             <Line muted>«{script.openerGatekeeper}»</Line>
           </>
         )}
+        <p className="text-xs text-faint">
+          <span className="rounded bg-brand-100 px-1 text-brand-800">blå</span> = besparelsen —
+          beregnet pr. lead (240–400k når leadet intet tal har)
+        </p>
       </Step>
 
-      <Step n="2" label="Pitch" hint="ét flow — læg ud med tallet">
+      <Step n="2" label="Pitch" hint="når de siger ja — tallet er allerede sagt">
         <blockquote className="space-y-2 border-l-2 border-brand-500 pl-3 text-sm font-medium leading-relaxed text-ink">
           {script.pitch.map((para, i) => (
             <Paragraph key={i} segments={para} />
           ))}
         </blockquote>
-        <p className="text-xs text-faint">
-          <span className="rounded bg-brand-100 px-1 text-brand-800">blå</span> = besparelsen —
-          beregnet pr. lead (240–400k når leadet intet tal har)
-        </p>
         <p className="text-xs text-faint">
           Split-test — vælg ÉT spørgsmål pr. opkald, rotér og notér hvad der lander:
         </p>

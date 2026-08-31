@@ -25,9 +25,9 @@ call, booked or not. That is still "at the latest at first contact", so Art. 14
 is satisfied. It has its own highlighted step in the app so it is never
 skipped:
 
-> **Åbning (ejer tager den):** "Hej, det er [navn]. Min mor har altid sagt, det
-> mest dyrebare, vi har, er tid — så jeg vil starte med at sige, at jeg er en
-> sælger, og høre, om du har 5 minutter?"
+> **Åbning (ejer tager den):** "Hej, det er [navn]. Jeg har selv en virksomhed,
+> og jeg har kigget lidt på jeres — jeg tror, jeg kan spare dig mellem [besparelse]
+> kroner om året. Har du 5 minutter?"
 >
 > **Åbning (medarbejder/reception):** "Hej, det er [navn]. Jeg ved godt jeg
 > ringer helt uopfordret — hvem er den rigtige at fange, når det handler om

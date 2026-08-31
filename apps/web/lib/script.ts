@@ -5,6 +5,13 @@
 // The AI still supplies the private notes and lead-specific objections,
 // never the script.
 //
+// v7 (Session 28, 2026-08-31): the number IS the opener. The "jeg er en
+// sælger"-angle lacked a hook, so the owner opener now leads with peer
+// credibility ("jeg har selv en virksomhed") + the lead's own savings band,
+// then asks for 5 minutes. openerOwner is Segment[] so the band stays
+// highlighted. The pitch (after they say yes) is just the branche proof +
+// the 2 slots — the number was already said. savingsLine dropped (unused).
+//
 // v6 (Session 28, 2026-08-31): the show-up lock ("tsunami/jordskælv") is out
 // of the script (retired below) — step 5 is now just the mail + day-before
 // call, then the PS. Callers must pass `brancheLabel` from
@@ -25,6 +32,12 @@
 //   Opener (ejer, v2–v3): "Hej, det er [dit navn]. Jeg ved godt det er pisse
 //   irriterende at blive ringet op af en, man ikke har bedt om, men må jeg få
 //   30 sekunder af din tid?"
+//   Opener (ejer, v4–v6): "Hej, det er [dit navn]. Min mor har altid sagt, det
+//   mest dyrebare, vi har, er tid — så jeg vil starte med at sige, at jeg er
+//   en sælger, og høre, om du har 5 minutter?"
+//   Pitch, money-first (v5–v6): "Jeg tror, jeg kan spare dig mellem [low] og
+//   [high] kroner om året — penge, du taber lige nu på opgaver, der ikke er
+//   din tid værd." (moved into the opener in v7)
 //   Pitch (v3–v4): "Jeg har fundet dig i CVR-registret, og jeg tror, du vil
 //   kunne være et godt fit til 1 af de 2 pladser, vi har åbne lige nu. Det, vi
 //   gør, er helt simpelt: vi sparer [branche] en masse penge. Realistisk set,
@@ -47,13 +60,13 @@ export type Segment = { text: string; kind: "plain" | "source" | "savings" };
 export type CallScript = {
   /** Who is expected to pick up — decides which opener is shown first. */
   audience: "owner" | "gatekeeper";
-  /** Owner picks up (mobile). */
-  openerOwner: string;
+  /** Owner picks up (mobile) — carries the lead's savings band (the hook). */
+  openerOwner: Segment[];
   /** Staff/reception picks up (landline / 70-number) — get to the owner first. */
   openerGatekeeper: string;
   /**
-   * The pitch as one spoken paragraph: the savings band first (the outcome),
-   * then the branche proof and the 2 open slots.
+   * The pitch after they say yes: the branche proof and the 2 open slots —
+   * the savings band was already delivered in the opener.
    */
   pitch: Segment[][];
   /**
@@ -62,8 +75,6 @@ export type CallScript = {
    * "inden du lægger på" step.
    */
   sourceLine: string;
-  /** The savings sentence in the pitch — always present (default band if no data). */
-  savingsLine: string;
   /** Split-test bank: SEVEN follow-ups — pick ONE per call, rotate. */
   splitTest: string[];
   /** The 30-day explanation, then the bridge into the pain question. */
@@ -107,25 +118,26 @@ export function buildCallScript(opts: {
   // The band is the lead's own calculated amount; 240–400k only as fallback.
   const low = savings?.annualLow ?? DEFAULT_LOW;
   const high = savings?.annualHigh ?? DEFAULT_HIGH;
-  const money: Segment = {
-    kind: "savings",
-    text: `Jeg tror, jeg kan spare dig mellem ${spoken(low)} og ${spoken(high)} kroner om året — penge, du taber lige nu på opgaver, der ikke er din tid værd.`,
-  };
   return {
     audience: phoneType === "mobile" || phoneType === null ? "owner" : "gatekeeper",
-    openerOwner:
-      "Hej, det er [dit navn]. Min mor har altid sagt, det mest dyrebare, vi har, er tid — så jeg vil starte med at sige, at jeg er en sælger, og høre, om du har 5 minutter?",
+    // The number IS the hook — said before they can hang up.
+    openerOwner: [
+      plain("Hej, det er [dit navn]. Jeg har selv en virksomhed, og jeg har kigget lidt på jeres —"),
+      {
+        kind: "savings",
+        text: `jeg tror, jeg kan spare dig mellem ${spoken(low)} og ${spoken(high)} kroner om året.`,
+      },
+      plain("Har du 5 minutter?"),
+    ],
     openerGatekeeper: `Hej, det er [dit navn]. Jeg ved godt jeg ringer helt uopfordret — hvem er den rigtige at fange, når det handler om hvordan I får hverdagen til at køre? … Er det ${owner}?`,
     pitch: [
       [
-        // Outcome first: the lead's own number in the first sentence.
-        money,
+        // They said yes to the number — now the proof and the scarcity.
         plain(
           `Det gør vi allerede for ${spokenBranche(brancheLabel)}, og vi har 2 pladser åbne lige nu — jeg tror, du er et fit til den ene.`,
         ),
       ],
     ],
-    savingsLine: money.text,
     // Art. 14 — said before hanging up, in EVERY first call, booked or not.
     sourceLine:
       "Inden jeg lægger på — helt kort, for en god ordens skyld: jeg fandt dig via CVR-registret. Og vil du ikke ringes op igen, siger du bare til, så fjerner jeg dig med det samme.",
