@@ -319,10 +319,17 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
   const contact = view<ContactEnrichment>(lead.contact);
   const decisionMakers = contact.decision_makers ?? [];
   const firstName = voicemailFirstName(decisionMakers);
+  // The band the opener (and voicemail) quotes: calculated, else size-aware fallback.
+  const fallback = fallbackSavingsBand(lead.employees_band, lead.employees_exact, lead.is_sole_trader);
+  const band = {
+    low: lead.savings?.annualLow ?? fallback.low,
+    high: lead.savings?.annualHigh ?? fallback.high,
+  };
   const voicemail = buildVoicemail({
     firstName,
     companyName: lead.company_name,
     branchekode: lead.branchekode,
+    band,
   });
   const angle = lead.angle;
   const branche = displayBranche(lead.branchekode, lead.branche_text) ?? "—";
@@ -350,7 +357,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
       : (phoneClasses.find((c) => c !== null) ?? null),
     savings: lead.savings,
     brancheLabel: spokenBrancheForCode(lead.branchekode),
-    fallback: fallbackSavingsBand(lead.employees_band, lead.employees_exact, lead.is_sole_trader),
+    fallback,
   });
 
   // Shared panels — rendered high up on mobile (call → script → outcome) and in
@@ -599,7 +606,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
               {voicemail}
             </blockquote>
             <p className="mt-2 text-xs text-faint">
-              Fast script — kun fornavn og årsag skifter. Et «JA» på SMS er deres egen
+              Fast script — kun fornavn, besparelse og årsag skifter. Et «JA» på SMS er deres egen
               henvendelse, så du må ringe (og skrive) tilbage.
             </p>
           </section>

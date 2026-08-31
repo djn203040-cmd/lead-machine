@@ -166,6 +166,12 @@ export default async function LeadDetailPage({
   // The fixed call script — only the opener variant, first name and savings vary.
   const firstName = voicemailFirstName(contact.decision_makers ?? []);
   const phoneClasses = lead.phone.map((p) => classifyPhone(p));
+  const fallback = fallbackSavingsBand(lead.employees_band, lead.employees_exact, lead.is_sole_trader);
+  // The band the opener (and voicemail) quotes: calculated, else the fallback.
+  const band = {
+    low: savings?.annualLow ?? fallback.low,
+    high: savings?.annualHigh ?? fallback.high,
+  };
   const script = buildCallScript({
     firstName,
     phoneType: phoneClasses.includes("mobile")
@@ -173,7 +179,7 @@ export default async function LeadDetailPage({
       : (phoneClasses.find((c) => c !== null) ?? null),
     savings,
     brancheLabel: spokenBrancheForCode(lead.branchekode),
-    fallback: fallbackSavingsBand(lead.employees_band, lead.employees_exact, lead.is_sole_trader),
+    fallback,
   });
 
   return (
@@ -284,10 +290,11 @@ export default async function LeadDetailPage({
                 firstName,
                 companyName: lead.company_name,
                 branchekode: lead.branchekode,
+                band,
               })}
             </blockquote>
             <p className="mt-2 text-xs text-faint">
-              Fast script — kun fornavn og årsag skifter. Et «JA» på SMS er deres egen
+              Fast script — kun fornavn, besparelse og årsag skifter. Et «JA» på SMS er deres egen
               henvendelse, så du må ringe (og skrive) tilbage.
             </p>
           </Section>

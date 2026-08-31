@@ -1,14 +1,14 @@
 // Voicemail script ("indtal ved intet svar") — deliberately a fixed template,
 // NOT AI-generated: the message is word-for-word the same on every call so it
 // stays fast to speak and consistent; only the decision-maker's first name, the
-// company and the one sector-typical time drain vary. Tone follows the
-// sales-angle voice (Miner-led): calm, no pitch, one micro-commitment — reply
-// "JA" by SMS. The prospect's SMS is their own henvendelse, so the callback
-// (and a reply) is fine under Markedsføringsloven §10; the full Art. 14 notice
-// is delivered on the callback, the voicemail only names the CVR source.
-//
-// The offer is the savings model: we find where the hours go, build the systems
-// that remove them, and take 20% of what is actually saved. Never a website.
+// company, the savings band and the one sector-typical time drain vary. Since
+// script v8.1 the voicemail is a mini version of the opener: the lead's own
+// number first, then "30 dage på at kigge med" and pay-when-it-works — same
+// voice, so a callback lands in a familiar pitch. One micro-commitment stays:
+// reply "JA" by SMS. The prospect's SMS is their own henvendelse, so the
+// callback (and a reply) is fine under Markedsføringsloven §10; the full
+// Art. 14 notice is delivered on the callback, the voicemail only names the
+// CVR source.
 
 import { type BranchekodeGroup, groupForCode } from "./branchekoder";
 import type { DecisionMaker } from "./enrichment";
@@ -45,18 +45,24 @@ export function voicemailFirstName(decisionMakers: DecisionMaker[]): string | nu
   return name ? name.split(/\s+/)[0] : null;
 }
 
+// Spoken amounts, same format as the call script: "120.000".
+const NUM = new Intl.NumberFormat("da-DK", { maximumFractionDigits: 0 });
+const spoken = (n: number) => NUM.format(n);
+
 export function buildVoicemail(opts: {
   firstName: string | null;
   companyName: string;
   branchekode: string | null;
+  /** Same band the opener quotes: calculated, else the size-aware fallback. */
+  band: { low: number; high: number };
 }): string {
-  const { firstName, companyName, branchekode } = opts;
+  const { firstName, companyName, branchekode, band } = opts;
   const group = groupForCode(branchekode);
   const hook = (group && HOOK_DA[group]) || HOOK_FALLBACK;
   return [
     firstName ? `Hej ${firstName}, det er [dit navn].` : "Hej, det er [dit navn].",
-    `Jeg prøvede lige at ringe til dig. Jeg fandt ${companyName} via CVR-registeret. Jeg hjælper virksomheder som jeres med ${hook} — og I betaler kun 20% af det, vi rent faktisk sparer jer. Ikke en krone op front.`,
-    'Jeg sidder ikke så meget ved telefonen, så det nemmeste er, hvis du bare sender en SMS med et "JA" til det her nummer — så ringer jeg tilbage og fortæller kort, hvordan det fungerer.',
+    `Jeg prøvede lige at ringe — jeg fandt ${companyName} via CVR-registeret. Jeg har selv en virksomhed, og jeg tror, jeg kan spare din for mellem ${spoken(band.low)} og ${spoken(band.high)} kroner om året — typisk ved ${hook}. Jeg skal bare bruge 30 dage på at kigge med først, og du betaler først, når vi har vist, at det virker.`,
+    'Jeg sidder ikke så meget ved telefonen, så det nemmeste er, hvis du bare sender en SMS med et "JA" til det her nummer — så ringer jeg tilbage.',
     firstName ? `Rigtig god dag, ${firstName}.` : "Rigtig god dag.",
   ].join("\n\n");
 }
