@@ -18,8 +18,11 @@
 ## Danish script (sole traders & company decision-makers)
 
 The spoken script is fixed and lives in `apps/web/lib/script.ts` (rendered in
-the dialer and on the lead page). The Art. 14 disclosure is the first sentence
-of the pitch, right after the opener — highlighted in the app so it is never
+the dialer and on the lead page). Since script v5 the Art. 14 disclosure is
+**no longer inside the pitch** (the pitch leads with the outcome instead) — it
+is a mandatory stand-alone line said **before hanging up**, in every first
+call, booked or not. That is still "at the latest at first contact", so Art. 14
+is satisfied. It has its own highlighted step in the app so it is never
 skipped:
 
 > **Åbning (ejer tager den):** "Hej, det er [navn]. Min mor har altid sagt, det
@@ -30,11 +33,12 @@ skipped:
 > ringer helt uopfordret — hvem er den rigtige at fange, når det handler om
 > hvordan I får hverdagen til at køre? … Er det [ejer]?"
 >
-> **Pitch, first sentence (Art. 14):** "Jeg har fundet jer i **CVR-registeret**,
-> og jeg tror, I kunne være et rigtig godt fit til en af de 2 pladser, vi har
-> åbne lige nu …"
+> **Inden du lægger på (Art. 14, every first call):** "Inden jeg lægger på —
+> helt kort, for en god ordens skyld: jeg fandt dig via **CVR-registret**. Og
+> vil du ikke ringes op igen, siger du bare til, så fjerner jeg dig med det
+> samme."
 >
-> Then the rest of the pitch. If they ask about their data or want to be left alone, add:
+> If they ask about their data or want to be left alone, add:
 > "I kan læse vores privatlivspolitik på [link], og I kan til enhver tid bede os
 > om **ikke** at kontakte jer igen — så fjerner vi jer med det samme."
 

@@ -101,15 +101,13 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
         )}
       </Step>
 
-      <Step n="2" label="Pitch" hint="ét flow — CVR-linjen er GDPR art. 14 og skal siges">
+      <Step n="2" label="Pitch" hint="ét flow — læg ud med tallet">
         <blockquote className="space-y-2 border-l-2 border-brand-500 pl-3 text-sm font-medium leading-relaxed text-ink">
           {script.pitch.map((para, i) => (
             <Paragraph key={i} segments={para} />
           ))}
         </blockquote>
         <p className="text-xs text-faint">
-          <span className="rounded bg-amber-bg px-1 text-amber-fg">gul</span> = kilde (skal
-          siges) ·{" "}
           <span className="rounded bg-brand-100 px-1 text-brand-800">blå</span> = besparelsen —
           beregnet pr. lead (240–400k når leadet intet tal har)
         </p>
@@ -141,6 +139,12 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
         <Line>«{script.showUp.ask}»</Line>
         <p className="text-xs text-faint">PS, lige inden du lægger på:</p>
         <Line>«{script.showUp.ps}»</Line>
+      </Step>
+
+      <Step n="✓" label="Inden du lægger på" hint="GDPR art. 14 — skal siges i hvert første opkald, booket eller ej">
+        <Line>
+          «<span className="rounded bg-amber-bg px-1 text-amber-fg">{script.sourceLine}</span>»
+        </Line>
       </Step>
 
       <Step n="?" label="«Hvad koster det?»" hint="20 % af ét års besparelse, betalt én gang">

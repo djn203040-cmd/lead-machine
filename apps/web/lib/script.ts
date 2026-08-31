@@ -5,23 +5,27 @@
 // The AI still supplies the private notes and lead-specific objections,
 // never the script.
 //
-// v4 (Session 28, 2026-08-31): new owner opener ("min mor har altid sagt…" —
-// honest-salesman, asks for 5 min) and a new post-booking line: announce the
-// info mail + ask permission for a day-before prep call. Everything else is
-// v3 unchanged: pitch = CVR + "1 af de 2 pladser" + the band; the SPLIT-TEST
-// bank of seven follow-up questions (pick one per call, rotate to see what
-// lands); the 30-days explanation; pain; booking; show-up lock; PS. The band
-// is the lead's own calculated amount — 240.000–400.000 is only the fallback
-// when the lead has no figure.
+// v5 (Session 28, 2026-08-31): pitch reworked — shorter, outcome first. The
+// savings band is now the FIRST sentence, framed as money the lead is losing;
+// the 2-slots scarcity and branche proof follow in one line. The CVR line is
+// OUT of the pitch, but Art. 14 still requires it on the first call, so it
+// moved to `sourceLine` — a short mandatory line before hanging up (see
+// docs/compliance/first-contact-script.md). The 30-days "how" was tightened
+// too. Unchanged from v4: openers, split-test bank, pain, price, booking,
+// booked/show-up/PS.
 //
 // RETIRED lines (not in the script right now — kept so we can bring them back):
 //   Opener (ejer, v2–v3): "Hej, det er [dit navn]. Jeg ved godt det er pisse
 //   irriterende at blive ringet op af en, man ikke har bedt om, men må jeg få
 //   30 sekunder af din tid?"
-//
-// The Art. 14 source line ("fundet dig i CVR-registret") is the first thing
-// said in the pitch on purpose — it has to be said on the first call. See
-// docs/compliance/first-contact-script.md.
+//   Pitch (v3–v4): "Jeg har fundet dig i CVR-registret, og jeg tror, du vil
+//   kunne være et godt fit til 1 af de 2 pladser, vi har åbne lige nu. Det, vi
+//   gør, er helt simpelt: vi sparer [branche] en masse penge. Realistisk set,
+//   for dig, ville det være mellem [low] og [high] kroner årligt."
+//   How (v3–v4): "Så det, vi gør, er, at vi følger jeres virksomhed i 30 dage
+//   — ikke fysisk, men remote selvfølgelig — og der ser vi præcis, hvor
+//   pengene og tiden render hen. Derfra kigger vi på, hvordan vi kan sætte en
+//   stopper for det."
 
 import type { PhoneType } from "./phone";
 import type { SavingsView } from "./savings";
@@ -38,10 +42,16 @@ export type CallScript = {
   /** Staff/reception picks up (landline / 70-number) — get to the owner first. */
   openerGatekeeper: string;
   /**
-   * The pitch as one spoken paragraph: the CVR line (Art. 14), the 2 open
-   * slots, and the lead's savings band.
+   * The pitch as one spoken paragraph: the savings band first (the outcome),
+   * then the branche proof and the 2 open slots.
    */
   pitch: Segment[][];
+  /**
+   * GDPR Art. 14 source disclosure — no longer part of the pitch, but it MUST
+   * be said before the first call ends (booked or not). Rendered as its own
+   * "inden du lægger på" step.
+   */
+  sourceLine: string;
   /** The savings sentence in the pitch — always present (default band if no data). */
   savingsLine: string;
   /** Split-test bank: SEVEN follow-ups — pick ONE per call, rotate. */
@@ -90,7 +100,7 @@ export function buildCallScript(opts: {
   const high = savings?.annualHigh ?? DEFAULT_HIGH;
   const money: Segment = {
     kind: "savings",
-    text: `Det, vi gør, er helt simpelt: vi sparer ${spokenBranche(brancheLabel)} en masse penge. Realistisk set, for dig, ville det være mellem ${spoken(low)} og ${spoken(high)} kroner årligt.`,
+    text: `Jeg tror, jeg kan spare dig mellem ${spoken(low)} og ${spoken(high)} kroner om året — penge, du taber lige nu på opgaver, der ikke er din tid værd.`,
   };
   return {
     audience: phoneType === "mobile" || phoneType === null ? "owner" : "gatekeeper",
@@ -99,15 +109,17 @@ export function buildCallScript(opts: {
     openerGatekeeper: `Hej, det er [dit navn]. Jeg ved godt jeg ringer helt uopfordret — hvem er den rigtige at fange, når det handler om hvordan I får hverdagen til at køre? … Er det ${owner}?`,
     pitch: [
       [
-        // Art. 14: the CVR source, said first.
-        { kind: "source", text: "Jeg har fundet dig i CVR-registret," },
-        plain(
-          "og jeg tror, du vil kunne være et godt fit til 1 af de 2 pladser, vi har åbne lige nu.",
-        ),
+        // Outcome first: the lead's own number in the first sentence.
         money,
+        plain(
+          `Det gør vi allerede for ${spokenBranche(brancheLabel)}, og vi har 2 pladser åbne lige nu — jeg tror, du er et fit til den ene.`,
+        ),
       ],
     ],
     savingsLine: money.text,
+    // Art. 14 — said before hanging up, in EVERY first call, booked or not.
+    sourceLine:
+      "Inden jeg lægger på — helt kort, for en god ordens skyld: jeg fandt dig via CVR-registret. Og vil du ikke ringes op igen, siger du bare til, så fjerner jeg dig med det samme.",
     // Split-test — pick ONE per call and rotate; note in the call log what landed.
     splitTest: [
       "Ville du have noget imod at spare de penge?",
@@ -118,7 +130,7 @@ export function buildCallScript(opts: {
       "Men du skal love, at du ikke bruger de penge, vi sparer, på [noget researchet til præcis den her person — deres hobby, bil, klub …]",
       "Men fortæl ikke din hustru, at du sparer de penge — så vil hun have ny bil og alt muligt.",
     ],
-    how: "Så det, vi gør, er, at vi følger jeres virksomhed i 30 dage — ikke fysisk, men remote selvfølgelig — og der ser vi præcis, hvor pengene og tiden render hen. Derfra kigger vi på, hvordan vi kan sætte en stopper for det.",
+    how: "Vi følger jeres virksomhed i 30 dage — remote selvfølgelig — og finder præcis, hvor tiden og pengene siver ud. Så lukker vi hullerne.",
     bridge: "Så med det sagt,",
     pain: {
       ask: "Hvad bruger du mest tid på lige nu, som du VED ikke er din tid værd?",
