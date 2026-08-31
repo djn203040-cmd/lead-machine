@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Tables } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
-import { codesInGroup, groupLabel } from "@/lib/branchekoder";
+import { codesInGroup, displayBranche } from "@/lib/branchekoder";
 import { employeesLabel } from "@/lib/leadmeta";
 import { phoneTypeMeta } from "@/lib/phone";
 import { EnrichmentBadge, PipelineBadge, ScoreChip, WebsiteNeedBadge } from "./_components/Badge";
@@ -203,7 +203,7 @@ export default async function LeadsPage({
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-muted">
-                      {l.branche_text ?? groupLabel(l.branchekode) ?? "—"}
+                      {displayBranche(l.branchekode, l.branche_text) ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-muted">{l.city ?? "—"}</td>
                     <td className="px-4 py-3 text-muted">

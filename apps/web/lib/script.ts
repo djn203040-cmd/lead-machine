@@ -5,6 +5,13 @@
 // The AI still supplies the private notes and lead-specific objections,
 // never the script.
 //
+// v6 (Session 28, 2026-08-31): the show-up lock ("tsunami/jordskælv") is out
+// of the script (retired below) — step 5 is now just the mail + day-before
+// call, then the PS. Callers must pass `brancheLabel` from
+// spokenBrancheForCode() (lib/branchekoder.ts), never raw CVR branche_text —
+// so the pitch says "frisører og barbere", not "drift af sundhedsvæsen i
+// øvrigt i.a.n.".
+//
 // v5 (Session 28, 2026-08-31): pitch reworked — shorter, outcome first. The
 // savings band is now the FIRST sentence, framed as money the lead is losing;
 // the 2-slots scarcity and branche proof follow in one line. The CVR line is
@@ -26,6 +33,9 @@
 //   — ikke fysisk, men remote selvfølgelig — og der ser vi præcis, hvor
 //   pengene og tiden render hen. Derfra kigger vi på, hvordan vi kan sætte en
 //   stopper for det."
+//   Show-up lock (v3–v5): "Så [navn] — ud over en tsunami eller ét jordskælv,
+//   ville der være noget som helst, der kunne forhindre dig i at møde op i
+//   morgen?"
 
 import type { PhoneType } from "./phone";
 import type { SavingsView } from "./savings";
@@ -65,8 +75,8 @@ export type CallScript = {
   price: { long: string; short: string; feeLine: string | null };
   /** The booking ask. */
   booking: string;
-  /** After the time is agreed — mail + day-before prep call, show-up lock, PS. */
-  showUp: { booked: string; ask: string; ps: string };
+  /** After the time is agreed — mail + day-before prep call, then the PS. */
+  showUp: { booked: string; ps: string };
 };
 
 // Spoken amounts: "120.000" — the script says "kroner" itself.
@@ -89,12 +99,11 @@ export function buildCallScript(opts: {
   firstName: string | null;
   phoneType: PhoneType | null;
   savings: SavingsView | null;
-  /** Spoken industry ("frisørsaloner") — branche_text or the group label. */
+  /** Spoken industry — pass spokenBrancheForCode(), never raw CVR branche_text. */
   brancheLabel?: string | null;
 }): CallScript {
   const { firstName, phoneType, savings, brancheLabel = null } = opts;
   const owner = firstName ?? "ejeren";
-  const name = firstName ?? "[navn]";
   // The band is the lead's own calculated amount; 240–400k only as fallback.
   const low = savings?.annualLow ?? DEFAULT_LOW;
   const high = savings?.annualHigh ?? DEFAULT_HIGH;
@@ -150,7 +159,6 @@ export function buildCallScript(opts: {
     showUp: {
       booked:
         "Jeg sender lige nogle oplysninger på mail, så du ved, hvad du går ind til. Og ville det være okay, at jeg ringede dagen før og lige stillede nogle spørgsmål, så jeg kan forberede mødet specifikt til dig?",
-      ask: `Så ${name} — ud over en tsunami eller ét jordskælv, ville der være noget som helst, der kunne forhindre dig i at møde op i morgen?`,
       ps: "Oh, og imens jeg lige husker det — når du møder op [mødedag], har jeg faktisk allerede 2 ting klar til dig, som jeg ved vil spare dig penge og tid allerede 5 minutter efter mødet.",
     },
   };

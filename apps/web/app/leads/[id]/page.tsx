@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Tables } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
-import { groupLabel } from "@/lib/branchekoder";
+import { displayBranche, spokenBrancheForCode } from "@/lib/branchekoder";
 import {
   employeesLabel,
   formatDate,
@@ -172,7 +172,7 @@ export default async function LeadDetailPage({
       ? "mobile"
       : (phoneClasses.find((c) => c !== null) ?? null),
     savings,
-    brancheLabel: lead.branche_text ?? groupLabel(lead.branchekode),
+    brancheLabel: spokenBrancheForCode(lead.branchekode),
   });
 
   return (
@@ -296,7 +296,7 @@ export default async function LeadDetailPage({
               <Field label="CVR-nummer" value={lead.cvr_number} />
               <Field label="Adresse" value={address} />
               <Field label="Kommune" value={lead.kommune} />
-              <Field label="Branche" value={lead.branche_text ?? groupLabel(lead.branchekode)} />
+              <Field label="Branche" value={displayBranche(lead.branchekode, lead.branche_text)} />
               <Field label="Branchekode" value={lead.branchekode} />
               <Field label="Ansatte" value={employeesLabel(lead.employees_band, lead.employees_exact)} />
               <Field label="Stiftet" value={formatDate(lead.founded_at)} />

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { groupLabel } from "@/lib/branchekoder";
+import { displayBranche, spokenBrancheForCode } from "@/lib/branchekoder";
 import {
   type AngleObjection,
   type ContactEnrichment,
@@ -325,7 +325,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
     branchekode: lead.branchekode,
   });
   const angle = lead.angle;
-  const branche = lead.branche_text ?? groupLabel(lead.branchekode) ?? "—";
+  const branche = displayBranche(lead.branchekode, lead.branche_text) ?? "—";
   const address = [lead.address, [lead.postal_code, lead.city].filter(Boolean).join(" ")]
     .filter(Boolean)
     .join(", ");
@@ -349,7 +349,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
       ? "mobile"
       : (phoneClasses.find((c) => c !== null) ?? null),
     savings: lead.savings,
-    brancheLabel: lead.branche_text ?? groupLabel(lead.branchekode),
+    brancheLabel: spokenBrancheForCode(lead.branchekode),
   });
 
   // Shared panels — rendered high up on mobile (call → script → outcome) and in

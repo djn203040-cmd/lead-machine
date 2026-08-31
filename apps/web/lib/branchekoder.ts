@@ -246,6 +246,36 @@ export function groupLabel(code: string | null | undefined): string | null {
   return group ? GROUPS[group] : null;
 }
 
+/**
+ * User-facing branche label: the friendly catalog label first, then the group
+ * label — the raw CVR text ("Drift af sundhedsvæsen i øvrigt i.a.n.") only as
+ * a last resort for uncatalogued codes. Keeps the UI simple.
+ */
+export function displayBranche(
+  code: string | null | undefined,
+  rawText: string | null | undefined,
+): string | null {
+  return labelForCode(code) ?? groupLabel(code) ?? rawText?.trim() ?? null;
+}
+
+/**
+ * SPOKEN branche for the call script — even simpler than the display label:
+ * no "&", no parentheses, no catch-all fluff ("Andre …", "… i øvrigt").
+ * Returns null for uncatalogued codes so the script can fall back to
+ * "virksomheder som jeres" instead of ever reading raw CVR text aloud.
+ */
+export function spokenBrancheForCode(code: string | null | undefined): string | null {
+  const label = labelForCode(code) ?? groupLabel(code);
+  if (!label) return null;
+  const spoken = label
+    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/\s*&\s*/g, " og ")
+    .replace(/^(andre|anden|andet|øvrige)\s+/i, "")
+    .replace(/\s+i øvrigt\b/gi, "")
+    .trim();
+  return spoken || null;
+}
+
 export function codesInGroup(group: string): string[] {
   return BRANCHER.filter((b) => b.group === group).map((b) => b.code);
 }
