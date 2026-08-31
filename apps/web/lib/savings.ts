@@ -35,6 +35,40 @@ function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+// Fallback band when a lead has no calculated savings figure: sized from
+// headcount, mirroring the worker's "sayable on a cold call" ceiling of
+// ~150.000 kr per employee per year (MAX_PER_EMPLOYEE) with the conservative
+// end at 60% (LOW_BAND). Capped at the old flat default (240–400k) so a big
+// business with no filed numbers never gets quoted an unsupported figure.
+const PER_EMPLOYEE_HIGH = 150_000;
+const FALLBACK_LOW_BAND = 0.6;
+const FALLBACK_MAX_HIGH = 400_000;
+
+/** Conservative headcount: exact if known, else the LOW end of the CVR band
+ *  ("ANTAL_2_4" → 2). Zero-employee bands and sole traders count the owner. */
+function headcount(
+  band: string | null,
+  exact: number | null,
+  isSoleTrader: boolean,
+): number {
+  if (typeof exact === "number" && exact > 0) return exact;
+  const m = band?.match(/ANTAL_(\d+)_/);
+  if (m) return Math.max(1, Number.parseInt(m[1], 10));
+  return isSoleTrader ? 1 : 2; // size unknown: assume small rather than overclaim
+}
+
+/** Size-aware savings band for leads without a calculated figure.
+ *  1 person → 90–150k, 2 → 180–300k, 3+ → 240–400k (the cap). */
+export function fallbackSavingsBand(
+  band: string | null,
+  exact: number | null,
+  isSoleTrader: boolean,
+): { low: number; high: number } {
+  const heads = headcount(band, exact, isSoleTrader);
+  const high = Math.min(heads * PER_EMPLOYEE_HIGH, FALLBACK_MAX_HIGH);
+  return { low: Math.round(high * FALLBACK_LOW_BAND), high };
+}
+
 /** Read the savings band off a lead_scores.breakdown payload, if it has one. */
 export function savingsFromBreakdown(json: unknown): SavingsView | null {
   const breakdown = parseBreakdown(json);

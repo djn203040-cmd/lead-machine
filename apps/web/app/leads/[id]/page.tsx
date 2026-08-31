@@ -29,7 +29,7 @@ import {
   parseBreakdown,
 } from "@/lib/score-breakdown";
 import { classifyPhone, phoneTypeMeta } from "@/lib/phone";
-import { savingsFromBreakdown } from "@/lib/savings";
+import { fallbackSavingsBand, savingsFromBreakdown } from "@/lib/savings";
 import { buildCallScript } from "@/lib/script";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import CallScriptCard from "../_components/CallScriptCard";
@@ -173,6 +173,7 @@ export default async function LeadDetailPage({
       : (phoneClasses.find((c) => c !== null) ?? null),
     savings,
     brancheLabel: spokenBrancheForCode(lead.branchekode),
+    fallback: fallbackSavingsBand(lead.employees_band, lead.employees_exact, lead.is_sole_trader),
   });
 
   return (

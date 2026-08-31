@@ -95,7 +95,9 @@ const NUM = new Intl.NumberFormat("da-DK", { maximumFractionDigits: 0 });
 const spoken = (n: number) => NUM.format(n);
 const plain = (text: string): Segment => ({ text, kind: "plain" });
 
-// Fallback band when the lead has no calculated savings figure of its own.
+// Last-resort band when the lead has no calculated figure AND the caller
+// passed no size-aware fallback (fallbackSavingsBand in lib/savings.ts —
+// 1 person → 90–150k, 2 → 180–300k, 3+ → this cap).
 const DEFAULT_LOW = 240_000;
 const DEFAULT_HIGH = 400_000;
 
@@ -112,12 +114,15 @@ export function buildCallScript(opts: {
   savings: SavingsView | null;
   /** Spoken industry — pass spokenBrancheForCode(), never raw CVR branche_text. */
   brancheLabel?: string | null;
+  /** Size-aware band for leads with no calculated figure (fallbackSavingsBand). */
+  fallback?: { low: number; high: number };
 }): CallScript {
-  const { firstName, phoneType, savings, brancheLabel = null } = opts;
+  const { firstName, phoneType, savings, brancheLabel = null, fallback } = opts;
   const owner = firstName ?? "ejeren";
-  // The band is the lead's own calculated amount; 240–400k only as fallback.
-  const low = savings?.annualLow ?? DEFAULT_LOW;
-  const high = savings?.annualHigh ?? DEFAULT_HIGH;
+  // The band is the lead's own calculated amount; the size-aware fallback
+  // only when no figure exists — a 1-man shop is never quoted 240–400k.
+  const low = savings?.annualLow ?? fallback?.low ?? DEFAULT_LOW;
+  const high = savings?.annualHigh ?? fallback?.high ?? DEFAULT_HIGH;
   return {
     audience: phoneType === "mobile" || phoneType === null ? "owner" : "gatekeeper",
     // The number IS the hook — said before they can hang up.

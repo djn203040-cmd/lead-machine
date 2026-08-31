@@ -106,7 +106,7 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
         )}
         <p className="text-xs text-faint">
           <span className="rounded bg-brand-100 px-1 text-brand-800">blå</span> = besparelsen —
-          beregnet pr. lead (240–400k når leadet intet tal har)
+          beregnet pr. lead (intet tal → skaleret efter ansatte, op til 150 t.kr. pr. hoved)
         </p>
       </Step>
 

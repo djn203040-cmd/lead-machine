@@ -17,7 +17,7 @@ import {
   websiteNeedMeta,
 } from "@/lib/leadmeta";
 import { classifyPhone, phoneTypeMeta } from "@/lib/phone";
-import type { SavingsView } from "@/lib/savings";
+import { fallbackSavingsBand, type SavingsView } from "@/lib/savings";
 import { buildCallScript } from "@/lib/script";
 import { buildVoicemail, voicemailFirstName } from "@/lib/voicemail";
 import CallScriptCard from "../../_components/CallScriptCard";
@@ -350,6 +350,7 @@ export default function Dialer({ queue }: { queue: DialerLead[] }) {
       : (phoneClasses.find((c) => c !== null) ?? null),
     savings: lead.savings,
     brancheLabel: spokenBrancheForCode(lead.branchekode),
+    fallback: fallbackSavingsBand(lead.employees_band, lead.employees_exact, lead.is_sole_trader),
   });
 
   // Shared panels — rendered high up on mobile (call → script → outcome) and in
