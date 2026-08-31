@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { codesInGroup } from "@/lib/branchekoder";
+import { cphToday } from "@/lib/callstats";
 import type { Tables } from "@/lib/database.types";
 import { objections } from "@/lib/enrichment";
 import { savingsFromBreakdown } from "@/lib/savings";
@@ -58,6 +59,16 @@ export default async function DialerPage({
   };
 
   const supabase = await createClient();
+
+  // Today's dial count (Danish day, resets at midnight) — revalidatePath in the
+  // outcome actions refreshes it after every logged call.
+  const { data: todayRow } = await supabase
+    .from("call_stats_daily")
+    .select("calls")
+    .eq("day", cphToday())
+    .maybeSingle<{ calls: number }>();
+  const calledToday = todayRow?.calls ?? 0;
+
   let query = supabase
     .from("leads")
     .select(
@@ -159,13 +170,24 @@ export default async function DialerPage({
             Ét lead ad gangen — nummer, salgsvinkel og virksomhedsdata klar til opkald.
           </p>
         </div>
-        <div className="inline-flex gap-1 rounded-xl border border-line bg-card p-1">
-          <Link href={scopeHref("fresh")} className={tabClass(scope === "fresh")}>
-            Ikke ringet
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Today's dial counter — clicks through to the stats page. */}
+          <Link
+            href="/leads/stats"
+            className="inline-flex items-baseline gap-1.5 rounded-xl border border-brand-100 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-800 transition-colors hover:border-brand-500"
+            title="Se statistik"
+          >
+            <span className="text-lg font-semibold tabular-nums leading-none">{calledToday}</span>
+            <span className="text-xs text-brand-700">opkald i dag →</span>
           </Link>
-          <Link href={scopeHref("all")} className={tabClass(scope === "all")}>
-            Alle aktive
-          </Link>
+          <div className="inline-flex gap-1 rounded-xl border border-line bg-card p-1">
+            <Link href={scopeHref("fresh")} className={tabClass(scope === "fresh")}>
+              Ikke ringet
+            </Link>
+            <Link href={scopeHref("all")} className={tabClass(scope === "all")}>
+              Alle aktive
+            </Link>
+          </div>
         </div>
       </div>
 

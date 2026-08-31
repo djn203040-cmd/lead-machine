@@ -102,6 +102,7 @@ export async function logOutcome(
   revalidatePath("/leads/dialer");
   revalidatePath("/leads");
   revalidatePath("/leads/mail");
+  revalidatePath("/leads/stats");
   return { ...(warning ? { warning } : {}), ...(info ? { info } : {}) };
 }
 
@@ -128,6 +129,7 @@ export async function logNoAnswer(leadId: string, note?: string): Promise<Action
   const info = await queueLetter(supabase, leadId, "A", user?.id ?? null);
   revalidatePath("/leads/dialer");
   revalidatePath("/leads/mail");
+  revalidatePath("/leads/stats");
   return info ? { info } : {};
 }
 

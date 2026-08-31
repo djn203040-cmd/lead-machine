@@ -7,6 +7,7 @@ const TABS = [
   { href: "/leads", label: "Leads" },
   { href: "/leads/dialer", label: "Powerdialer" },
   { href: "/leads/mail", label: "Breve" },
+  { href: "/leads/stats", label: "Statistik" },
 ] as const;
 
 // Same tabs in two skins: inline in the header on desktop, a full-width row

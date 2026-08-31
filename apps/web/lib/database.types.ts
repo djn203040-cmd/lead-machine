@@ -707,7 +707,18 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      call_stats_daily: {
+        Row: {
+          day: string
+          calls: number
+          no_answer: number
+          contacted: number
+          meetings: number
+          lost: number
+          discarded: number
+        }
+        Relationships: []
+      }
     }
     Functions: {
       mail_landing: {
