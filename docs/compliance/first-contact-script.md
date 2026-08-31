@@ -22,9 +22,9 @@ the dialer and on the lead page). The Art. 14 disclosure is the first sentence
 of the pitch, right after the opener — highlighted in the app so it is never
 skipped:
 
-> **Åbning (ejer tager den):** "Hej, det er [navn]. Jeg ved godt det er pisse
-> irriterende at blive ringet op af en, man ikke har bedt om, men må jeg få 30
-> sekunder af din tid?"
+> **Åbning (ejer tager den):** "Hej, det er [navn]. Min mor har altid sagt, det
+> mest dyrebare, vi har, er tid — så jeg vil starte med at sige, at jeg er en
+> sælger, og høre, om du har 5 minutter?"
 >
 > **Åbning (medarbejder/reception):** "Hej, det er [navn]. Jeg ved godt jeg
 > ringer helt uopfordret — hvem er den rigtige at fange, når det handler om

@@ -5,12 +5,19 @@
 // The AI still supplies the private notes and lead-specific objections,
 // never the script.
 //
-// v3 (Session 29): the user's final wording, verbatim (spelling normalised).
-// Pitch = CVR + "1 af de 2 pladser" + the band; then a SPLIT-TEST bank of
-// seven follow-up questions (pick one per call, rotate to see what lands);
-// the 30-days explanation; pain; booking; show-up lock; PS. The band is the
-// lead's own calculated amount — 240.000–400.000 is only the fallback when
-// the lead has no figure.
+// v4 (Session 28, 2026-08-31): new owner opener ("min mor har altid sagt…" —
+// honest-salesman, asks for 5 min) and a new post-booking line: announce the
+// info mail + ask permission for a day-before prep call. Everything else is
+// v3 unchanged: pitch = CVR + "1 af de 2 pladser" + the band; the SPLIT-TEST
+// bank of seven follow-up questions (pick one per call, rotate to see what
+// lands); the 30-days explanation; pain; booking; show-up lock; PS. The band
+// is the lead's own calculated amount — 240.000–400.000 is only the fallback
+// when the lead has no figure.
+//
+// RETIRED lines (not in the script right now — kept so we can bring them back):
+//   Opener (ejer, v2–v3): "Hej, det er [dit navn]. Jeg ved godt det er pisse
+//   irriterende at blive ringet op af en, man ikke har bedt om, men må jeg få
+//   30 sekunder af din tid?"
 //
 // The Art. 14 source line ("fundet dig i CVR-registret") is the first thing
 // said in the pitch on purpose — it has to be said on the first call. See
@@ -48,8 +55,8 @@ export type CallScript = {
   price: { long: string; short: string; feeLine: string | null };
   /** The booking ask. */
   booking: string;
-  /** After the time is agreed — lock the show-up, then the PS. */
-  showUp: { ask: string; ps: string };
+  /** After the time is agreed — mail + day-before prep call, show-up lock, PS. */
+  showUp: { booked: string; ask: string; ps: string };
 };
 
 // Spoken amounts: "120.000" — the script says "kroner" itself.
@@ -88,7 +95,7 @@ export function buildCallScript(opts: {
   return {
     audience: phoneType === "mobile" || phoneType === null ? "owner" : "gatekeeper",
     openerOwner:
-      "Hej, det er [dit navn]. Jeg ved godt det er pisse irriterende at blive ringet op af en, man ikke har bedt om, men må jeg få 30 sekunder af din tid?",
+      "Hej, det er [dit navn]. Min mor har altid sagt, det mest dyrebare, vi har, er tid — så jeg vil starte med at sige, at jeg er en sælger, og høre, om du har 5 minutter?",
     openerGatekeeper: `Hej, det er [dit navn]. Jeg ved godt jeg ringer helt uopfordret — hvem er den rigtige at fange, når det handler om hvordan I får hverdagen til at køre? … Er det ${owner}?`,
     pitch: [
       [
@@ -129,6 +136,8 @@ export function buildCallScript(opts: {
     booking:
       "Skal vi ikke tage ti minutter, hvor jeg spørger ind til, hvordan I kører det i dag? Passer det bedst i morgen formiddag eller til eftermiddag?",
     showUp: {
+      booked:
+        "Jeg sender lige nogle oplysninger på mail, så du ved, hvad du går ind til. Og ville det være okay, at jeg ringede dagen før og lige stillede nogle spørgsmål, så jeg kan forberede mødet specifikt til dig?",
       ask: `Så ${name} — ud over en tsunami eller ét jordskælv, ville der være noget som helst, der kunne forhindre dig i at møde op i morgen?`,
       ps: "Oh, og imens jeg lige husker det — når du møder op [mødedag], har jeg faktisk allerede 2 ting klar til dig, som jeg ved vil spare dig penge og tid allerede 5 minutter efter mødet.",
     },

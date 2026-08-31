@@ -135,7 +135,9 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
         <Line>«{script.booking}»</Line>
       </Step>
 
-      <Step n="5" label="Sørg for de dukker op" hint="når tiden er aftalt">
+      <Step n="5" label="Når mødet er booket" hint="mail + opkald dagen før">
+        <Line>«{script.showUp.booked}»</Line>
+        <p className="text-xs text-faint">Lås så mødet fast:</p>
         <Line>«{script.showUp.ask}»</Line>
         <p className="text-xs text-faint">PS, lige inden du lægger på:</p>
         <Line>«{script.showUp.ps}»</Line>
