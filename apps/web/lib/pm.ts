@@ -12,7 +12,7 @@
 import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { groupLabel } from "@/lib/branchekoder";
+import { displayBranche } from "@/lib/branchekoder";
 
 // Lead Machine pipeline_status → Sonorous OS lead_status enum.
 const PM_STATUS: Record<string, string> = {
@@ -65,7 +65,7 @@ export async function syncOutcomeToPm(status: string, lead: PmSyncLead): Promise
 
     if (pmStatus !== "meeting_booked") return {};
 
-    const niche = groupLabel(lead.branchekode) ?? lead.branche_text;
+    const niche = displayBranche(lead.branchekode, lead.branche_text);
     const { data, error } = await pm
       .from("leads")
       .insert({

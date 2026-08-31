@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GROUP_OPTIONS, codesInGroup, groupLabel } from "@/lib/branchekoder";
+import { GROUP_OPTIONS, codesInGroup, displayBranche, groupLabel } from "@/lib/branchekoder";
 import type { Tables } from "@/lib/database.types";
 import { formatDate } from "@/lib/leadmeta";
 import { pickRecipient } from "@/lib/mail/enqueue";
@@ -195,7 +195,7 @@ export default async function MailPage({
         id: l.id,
         company_name: l.company_name,
         address: [l.address, [l.postal_code, l.city].filter(Boolean).join(" ")].filter(Boolean).join(", "),
-        branche: groupLabel(l.branchekode) ?? l.branche_text,
+        branche: displayBranche(l.branchekode, l.branche_text),
         score: l.score,
         recipient: pickRecipient(contactBy.get(l.id)),
         is_sole_trader: l.is_sole_trader,

@@ -247,15 +247,31 @@ export function groupLabel(code: string | null | undefined): string | null {
 }
 
 /**
+ * DB25's official texts are bureaucratic ("Maleraktiviteter", "Tandlægers
+ * aktiviteter", "… i.a.n."). Rewrite them into plain Danish before ever
+ * showing raw CVR text: drop "i.a.n.", "Tandlægers aktiviteter" → "Tandlæger",
+ * "Maleraktiviteter" → "Malervirksomheder".
+ */
+function cleanRawBranche(rawText: string | null | undefined): string | null {
+  const t = rawText?.trim();
+  if (!t) return null;
+  return t
+    .replace(/,?\s*i\.a\.n\.?/gi, "")
+    .replace(/(\p{L}+)s\s+aktiviteter\b/giu, "$1")
+    .replace(/aktiviteter\b/gi, "virksomheder")
+    .trim();
+}
+
+/**
  * User-facing branche label: the friendly catalog label first, then the group
- * label — the raw CVR text ("Drift af sundhedsvæsen i øvrigt i.a.n.") only as
- * a last resort for uncatalogued codes. Keeps the UI simple.
+ * label — the raw CVR text only as a last resort for uncatalogued codes, and
+ * then cleaned (never "…aktiviteter"/"i.a.n."). Keeps the UI simple.
  */
 export function displayBranche(
   code: string | null | undefined,
   rawText: string | null | undefined,
 ): string | null {
-  return labelForCode(code) ?? groupLabel(code) ?? rawText?.trim() ?? null;
+  return labelForCode(code) ?? groupLabel(code) ?? cleanRawBranche(rawText);
 }
 
 /**
