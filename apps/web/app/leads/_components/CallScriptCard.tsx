@@ -110,31 +110,22 @@ export default function CallScriptCard({ script }: { script: CallScript }) {
         </p>
       </Step>
 
-      <Step n="2" label="Pitch" hint="når de siger ja — tallet er allerede sagt">
+      <Step n="2" label="Når de siger ja" hint="én vejrtrækning — mekanisme + betaling bagefter">
         <blockquote className="space-y-2 border-l-2 border-brand-500 pl-3 text-sm font-medium leading-relaxed text-ink">
           {script.pitch.map((para, i) => (
             <Paragraph key={i} segments={para} />
           ))}
         </blockquote>
+      </Step>
+
+      <Step n="3" label="Spørgsmålet" hint="stil det — og TI STILLE, deres svar sælger mødet">
+        <Line>«{script.pain}»</Line>
         <p className="text-xs text-faint">
-          Split-test — vælg ÉT spørgsmål pr. opkald, rotér og notér hvad der lander:
+          (lad tavsheden arbejde — afbryd ikke, uanset hvor lang pausen bliver)
         </p>
-        {script.splitTest.map((j) => (
-          <Line key={j} muted>
-            «{j}»
-          </Line>
-        ))}
-        <Line>«{script.how}»</Line>
-        <Line>«{script.bridge}»</Line>
       </Step>
 
-      <Step n="3" label="Smerte" hint="stil spørgsmålet — og ti stille">
-        <Line>«{script.pain.ask}»</Line>
-        <p className="text-xs text-faint">(lad dem svare)</p>
-        <Line>«{script.pain.followup}»</Line>
-      </Step>
-
-      <Step n="4" label="Book mødet">
+      <Step n="4" label="Book mødet" hint="brug deres svar som bro">
         <Line>«{script.booking}»</Line>
       </Step>
 

@@ -26,8 +26,8 @@ is satisfied. It has its own highlighted step in the app so it is never
 skipped:
 
 > **Åbning (ejer tager den):** "Hej, det er [navn]. Jeg har selv en virksomhed,
-> og jeg har kigget lidt på jeres — jeg tror, jeg kan spare dig mellem [besparelse]
-> kroner om året. Har du 5 minutter?"
+> og jeg vil gerne tilbyde at følge din i 30 dage for at spare dig [besparelse]
+> kroner om året. Er det noget, du vil bruge 5 minutter på?"
 >
 > **Åbning (medarbejder/reception):** "Hej, det er [navn]. Jeg ved godt jeg
 > ringer helt uopfordret — hvem er den rigtige at fange, når det handler om
