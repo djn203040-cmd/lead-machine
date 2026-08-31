@@ -31,6 +31,10 @@
 //   Opener (ejer, v7): "Hej, det er [dit navn]. Jeg har selv en virksomhed, og
 //   jeg har kigget lidt på jeres — jeg tror, jeg kan spare dig mellem [low] og
 //   [high] kroner om året. Har du 5 minutter?"
+//   Opener (ejer, v8.0): "Hej, det er [dit navn]. Jeg har selv en virksomhed,
+//   og jeg vil gerne tilbyde at følge din i 30 dage for at spare dig mellem
+//   [low] og [high] kroner om året. Er det noget, du vil bruge 5 minutter på?"
+//   ("tilbyde at" felt too formal — replaced by "kigge med" in v8.1)
 //   Pitch (v3–v4): "Jeg har fundet dig i CVR-registret, og jeg tror, du vil
 //   kunne være et godt fit til 1 af de 2 pladser, vi har åbne lige nu. Det, vi
 //   gør, er helt simpelt: vi sparer [branche] en masse penge. Realistisk set,
@@ -126,17 +130,18 @@ export function buildCallScript(opts: {
   const high = savings?.annualHigh ?? fallback?.high ?? DEFAULT_HIGH;
   return {
     audience: phoneType === "mobile" || phoneType === null ? "owner" : "gatekeeper",
-    // The mechanism (30 days) is what makes the number credible — "tilbyde at"
-    // keeps "følge din virksomhed" from sounding like surveillance.
+    // Number first (the hook), then the 30 days as a casual precondition —
+    // "kigge med" is colleague-talk, not vendor-talk, and doesn't sound like
+    // surveillance the way "følge din virksomhed" could.
     openerOwner: [
-      plain(
-        "Hej, det er [dit navn]. Jeg har selv en virksomhed, og jeg vil gerne tilbyde at følge din i 30 dage for at spare dig",
-      ),
+      plain("Hej, det er [dit navn]. Jeg har selv en virksomhed, og jeg tror, jeg kan spare din for"),
       {
         kind: "savings",
-        text: `mellem ${spoken(low)} og ${spoken(high)} kroner om året.`,
+        text: `mellem ${spoken(low)} og ${spoken(high)} kroner om året`,
       },
-      plain("Er det noget, du vil bruge 5 minutter på?"),
+      plain(
+        "— jeg skal bare bruge 30 dage på at kigge med først. Er det noget, du vil bruge 5 minutter på?",
+      ),
     ],
     openerGatekeeper: `Hej, det er [dit navn]. Jeg ved godt jeg ringer helt uopfordret — hvem er den rigtige at fange, når det handler om hvordan I får hverdagen til at køre? … Er det ${owner}?`,
     pitch: [
